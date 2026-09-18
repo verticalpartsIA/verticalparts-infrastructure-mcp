@@ -17,3 +17,6 @@ dependencies = [
 
 [project.scripts]
 verticalparts-infra-mcp = "verticalparts_infra_mcp.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/verticalparts_infra_mcp"]
