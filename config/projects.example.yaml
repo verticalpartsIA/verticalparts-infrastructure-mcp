@@ -1,0 +1,31 @@
+projects:
+  omie-mcp:
+    description: "MCP Omie VerticalParts"
+    path: "CHANGE_ME_AFTER_DISCOVERY"
+    repo: null
+    branch: null
+    runtime:
+      type: systemd
+      service: "omie-mcp.service"
+    health:
+      url: "https://mcp.vpsistema.com/omie/mcp"
+      mode: "mcp_endpoint"
+    env_files: []
+
+  whatsapp-mcp:
+    description: "MCP WhatsApp VerticalParts"
+    path: "CHANGE_ME_AFTER_DISCOVERY"
+    repo: "https://github.com/verticalpartsIA/008_BorderoDiario.git"
+    branch: null
+    runtime:
+      type: systemd
+      service: "whatsapp-mcp.service"
+    health:
+      url: "https://whatsapp-mcp.vpsistema.com/health"
+      mode: "http"
+    env_files:
+      - ".env"
+
+# Copie este arquivo para config/projects.yaml somente no ambiente de execução.
+# Confirme caminhos, branches e health checks reais antes de habilitar mutações.
+# config/projects.yaml é ignorado pelo Git para não expor inventário operacional.
