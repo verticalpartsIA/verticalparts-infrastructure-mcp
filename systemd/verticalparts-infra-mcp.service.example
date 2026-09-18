@@ -1,0 +1,22 @@
+[Unit]
+Description=VerticalParts Infrastructure MCP
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=infra-mcp
+Group=infra-mcp
+WorkingDirectory=/opt/verticalparts-infrastructure-mcp
+EnvironmentFile=/opt/verticalparts-infrastructure-mcp/.env
+ExecStart=/opt/verticalparts-infrastructure-mcp/.venv/bin/verticalparts-infra-mcp
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/verticalparts-infrastructure-mcp/data
+
+[Install]
+WantedBy=multi-user.target
