@@ -1,0 +1,26 @@
+policy:
+  confirmations:
+    critical: "CONFIRMO"
+    destructive: "CONFIRMO_DESTRUTIVO"
+    break_glass: "BREAK_GLASS"
+
+  quiet_hours:
+    enabled: false
+
+  deploy:
+    reject_dirty_worktree: true
+    automatic_rollback_on_health_failure: true
+
+  secrets:
+    return_env_values: false
+    return_private_keys: false
+    return_tokens: false
+
+  audit:
+    enabled: true
+    redact_patterns:
+      - "TOKEN"
+      - "SECRET"
+      - "PASSWORD"
+      - "API_KEY"
+      - "PRIVATE_KEY"
