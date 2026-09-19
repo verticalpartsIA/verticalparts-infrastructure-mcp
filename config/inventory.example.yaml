@@ -23,4 +23,17 @@ domains:
     notes:
       - migrated_from_shared_hosting
 
+  legacy-example.vpsistema.com:
+    environment: shared_hosting
+    status: legacy
+    source_of_truth: reconciled
+    notes:
+      - cadastro_legado_nao_define_producao
+      - nao_remover_sem_validar_dns_runtime_health
+
 aliases: {}
+
+# Regras:
+# - website Hostinger cadastrado não prova produção;
+# - DNS + runtime + health + inventory reconciliado definem o ambiente real;
+# - website_type=other não deve ser traduzido automaticamente para PHP.
