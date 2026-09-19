@@ -671,17 +671,48 @@ Não usar reset --hard automaticamente.
 
 # PARTE P — HOSTINGER
 
-Preferir tools MCP:
+Preferir tools MCP semânticas.
+
+VPS:
 - hostinger_list_vps
-- hostinger_list_websites
 - hostinger_vps_status
 - hostinger_vps_metrics
+- hostinger_vps_start
+- hostinger_vps_stop
+- hostinger_vps_restart
 
-Para endpoint novo:
+Shared Hosting:
+- hostinger_list_orders
+- hostinger_list_websites
+- hostinger_website_files
+- hostinger_website_file_read
+- hostinger_git_autodeploy_status
+- hostinger_ssl_status
+- hostinger_list_databases
+- hostinger_list_cron_jobs
+- hostinger_nodejs_settings
+- hostinger_nodejs_builds
+- hostinger_nodejs_build_logs
+- hostinger_nodejs_runtime_logs
+- hostinger_nodejs_env_keys
+- hostinger_nodejs_vulnerabilities
+- hostinger_nodejs_restart
+
+`hostinger_nodejs_restart` é mutação crítica e exige `CONFIRMO`.
+
+Regra de segredo:
+- `hostinger_nodejs_env_keys` retorna nomes de chaves, nunca valores;
+- não tente usar `hostinger_website_file_read` para ler `.env`, chaves privadas ou certificados privados;
+- não exponha `HOSTINGER_API_TOKEN`.
+
+Para endpoint oficial ainda sem wrapper:
 - verificar https://developers.hostinger.com/
-- usar hostinger_api_call apenas com path oficial.
+- usar `hostinger_api_call` apenas com path/method oficial e confirmação proporcional ao risco.
 
-Não expor HOSTINGER_API_TOKEN.
+Homologação 2026-09-19:
+- 49 tools carregadas no servidor;
+- `hostinger_ssl_status` validada end-to-end pelo protocolo MCP;
+- VPClick no Shared Hosting é legado; produção está na VPS/Docker.
 
 ---
 
