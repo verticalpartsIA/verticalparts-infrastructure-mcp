@@ -177,7 +177,7 @@ class HostingerClient:
             period=period if from_line is None else None,
             from_line=from_line,
             limit=limit,
-            levels=levels,
+            levels=",".join(levels) if levels else None,
         )
         return await self.request("GET", path)
 
