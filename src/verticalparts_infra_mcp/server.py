@@ -11,7 +11,7 @@ from .audit import write_audit
 from .config import settings
 from .deploy import deploy_project as run_deploy
 from .hostinger import hostinger
-from .registry import load_projects, get_project
+from .registry import load_projects, load_inventory, get_project
 from .safety import Risk, classify_hostinger_mutation, require_confirmation
 from .ssh import ssh
 
@@ -61,6 +61,12 @@ async def infra_list_projects() -> dict[str, Any]:
             "env_files": cfg.get("env_files", []),
         }
     return safe
+
+
+@mcp.tool()
+async def infra_inventory() -> dict[str, Any]:
+    """Retorna o inventário operacional autoritativo: VPS, shared hosting, DNS e legados/migrações."""
+    return load_inventory()
 
 
 @mcp.tool()
