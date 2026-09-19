@@ -102,6 +102,30 @@ wrapper semântico para operações frequentes + fallback oficial.
 
 ---
 
+### 2.3A Docker privilege execution
+
+Docker tools execute through the SSH plane using controlled privilege escalation:
+
+- read: `sudo docker ps`, `sudo docker logs`, `sudo docker compose ... ps/logs`;
+- mutation: `sudo docker restart`, `sudo docker compose pull/build/up/restart`;
+- mutations remain protected by the MCP confirmation model.
+
+Rationale:
+
+- the service user `infra-mcp` does not need direct membership in the Docker group;
+- membership in the Docker group is effectively root-equivalent and should not be the default fix;
+- privilege stays explicit in the command path and auditable through MCP operations.
+
+Homologated 2026-09-19 against `/docker/vpclick`: both `docker_ps` and Compose `ps` returned exit status 0.
+
+### 2.3B External-deploy projects
+
+A registered project may declare deployment as external, for example GitHub Actions. For such projects, `deploy_project` must refuse publication rather than bypass the declared external pipeline. Runtime inspection/control and deployment are separate responsibilities.
+
+VPClick is the canonical current example, with deployment via `.github/workflows/deploy-vps.yml`.
+
+---
+
 ### 2.4 SSH Plane
 
 Código:
