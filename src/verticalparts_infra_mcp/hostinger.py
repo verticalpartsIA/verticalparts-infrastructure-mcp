@@ -32,6 +32,9 @@ class HostingerClient:
     async def list_vps(self) -> Any:
         return await self.request("GET", "/api/vps/v1/virtual-machines")
 
+    async def list_websites(self) -> Any:
+        return await self.request("GET", "/api/hosting/v1/websites")
+
     async def get_vps(self, vm_id: str) -> Any:
         return await self.request("GET", f"/api/vps/v1/virtual-machines/{vm_id}")
 
