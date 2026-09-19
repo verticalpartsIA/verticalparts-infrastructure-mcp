@@ -26,6 +26,24 @@ projects:
     env_files:
       - ".env"
 
+  vpclick:
+    description: "VPClick — produção na VPS via Docker; deploy por GitHub Actions"
+    path: "/docker/vpclick"
+    repo: "git@github.com:verticalpartsIA/005_vpclick.git"
+    branch: "main"
+    runtime:
+      type: docker_compose
+      compose_file: "docker-compose.yml"
+      container: "vpclick-vpclick-1"
+    deploy:
+      mode: external
+      provider: github_actions
+      workflow: ".github/workflows/deploy-vps.yml"
+    health:
+      url: "https://vpclick.vpsistema.com/version.json"
+      mode: "http"
+    env_files: []
+
 # Copie este arquivo para config/projects.yaml somente no ambiente de execução.
 # Confirme caminhos, branches e health checks reais antes de habilitar mutações.
 # config/projects.yaml é ignorado pelo Git para não expor inventário operacional.
