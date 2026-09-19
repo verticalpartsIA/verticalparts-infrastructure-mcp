@@ -382,53 +382,80 @@ Se CONNECT_TIMEOUT:
 
 # PARTE G — ATUALIZAR O PRÓPRIO INFRASTRUCTURE MCP
 
+IMPORTANTE (achado real de 2026-09-19, sessão 2): `/opt/verticalparts-infrastructure-mcp` é `root:root`. A tool MCP estruturada `git_pull`/`git_status` roda como usuário `infra-mcp` **sem sudo** e falha ali com `dubious ownership` (Git) e depois `Permission denied` em `.git/FETCH_HEAD`. Use os comandos abaixo com `sudo` (funcionam tanto rodando como root quanto via break-glass/`infra_exec_command` como `infra-mcp`, que tem `sudo NOPASSWD: ALL`). Se estiver usando as tools MCP em vez de terminal direto, use `infra_exec_command` (break-glass) para este fluxo inteiro, não `git_pull`.
+
+## G0. Registrar exceção de ownership do Git (uma vez só, por ambiente)
+
+~~~bash
+sudo git config --global --add safe.directory /opt/verticalparts-infrastructure-mcp
+~~~
+
+Sem isso, todo comando Git abaixo falha com `fatal: detected dubious ownership`.
+
 ## G1. Ver branch/status
 
 ~~~bash
-git -C /opt/verticalparts-infrastructure-mcp status --short --branch
+sudo git -C /opt/verticalparts-infrastructure-mcp status --short --branch
 ~~~
 
 ## G2. Fetch
 
 ~~~bash
-git -C /opt/verticalparts-infrastructure-mcp fetch --all --prune
+sudo git -C /opt/verticalparts-infrastructure-mcp fetch --all --prune
 ~~~
 
 ## G3. Pull seguro
 
+Para atualizar a branch atual:
+
 ~~~bash
-git -C /opt/verticalparts-infrastructure-mcp pull --ff-only origin main
+sudo git -C /opt/verticalparts-infrastructure-mcp pull --ff-only
 ~~~
 
-Se houver working tree suja:
-PARE. Não faça reset hard automaticamente.
+Para trocar de branch (ex.: aplicar uma branch de feature antes do merge em main):
+
+~~~bash
+sudo git -C /opt/verticalparts-infrastructure-mcp checkout NOME_DA_BRANCH
+sudo git -C /opt/verticalparts-infrastructure-mcp pull --ff-only origin NOME_DA_BRANCH
+~~~
+
+Se houver working tree suja (inclusive arquivos `.bak`/backup criados por operações anteriores dentro do próprio diretório do repo):
+PARE. Mova os arquivos não versionados para fora do repositório (ex.: `/root/mcp-config-backups/`) antes de tentar de novo. Não faça reset hard automaticamente.
 
 ## G4. Se pyproject mudou, atualizar dependências
 
 ~~~bash
-cd /opt/verticalparts-infrastructure-mcp && .venv/bin/pip install -e .
+sudo /opt/verticalparts-infrastructure-mcp/.venv/bin/pip install -e /opt/verticalparts-infrastructure-mcp
+~~~
+
+## G4A. Validar sintaxe antes de reiniciar
+
+~~~bash
+sudo /opt/verticalparts-infrastructure-mcp/.venv/bin/python3 -m py_compile /opt/verticalparts-infrastructure-mcp/src/verticalparts_infra_mcp/server.py
 ~~~
 
 ## G5. Reiniciar
 
 ~~~bash
-systemctl restart verticalparts-infra-mcp.service
+sudo systemctl restart verticalparts-infra-mcp.service
 ~~~
+
+Isso derruba a sessão MCP Streamable HTTP atual — reconectar é esperado, não é incidente (ver seção 4 do `00_READ_FIRST`).
 
 ## G6. Verificar
 
 ~~~bash
-systemctl is-active verticalparts-infra-mcp.service
+sudo systemctl is-active verticalparts-infra-mcp.service
 ~~~
 
 ## G7. Validar tools/list
 
-Use B10.
+Use B10. Se uma tool nova não aparece imediatamente por uma sessão de cliente MCP já conectada, chame qualquer tool de leitura (ex. `infra_status`) para forçar a reconexão antes de procurar a tool nova de novo — o catálogo do cliente pode estar em cache da sessão anterior por alguns segundos.
 
 ## G8. Validar inventory YAML
 
 ~~~bash
-cd /opt/verticalparts-infrastructure-mcp && .venv/bin/python -c "import yaml; p='config/inventory.yaml'; d=yaml.safe_load(open(p)); print('INVENTARIO_OK', len(d.get('domains', {})), 'dominios')"
+sudo /opt/verticalparts-infrastructure-mcp/.venv/bin/python3 -c "import yaml; p='/opt/verticalparts-infrastructure-mcp/config/inventory.yaml'; d=yaml.safe_load(open(p)); print('INVENTARIO_OK', len(d.get('domains', {})), 'dominios')"
 ~~~
 
 ---
@@ -710,9 +737,51 @@ Para endpoint oficial ainda sem wrapper:
 - usar `hostinger_api_call` apenas com path/method oficial e confirmação proporcional ao risco.
 
 Homologação 2026-09-19:
-- 49 tools carregadas no servidor;
+- 49 tools carregadas no servidor (sessão 1); **62 tools** após expansão de segurança/observabilidade na sessão 2 (ver PARTE AJ);
 - `hostinger_ssl_status` validada end-to-end pelo protocolo MCP;
 - VPClick no Shared Hosting é legado; produção está na VPS/Docker.
+
+---
+
+# PARTE AJ — FIREWALL (UFW)
+
+Estado desde 2026-09-19: ativo, `default deny incoming`, liberado apenas `22/80/443`. Antes disso estava **totalmente inativo** (nenhuma regra, policy ACCEPT) — não presuma que está protegido sem checar.
+
+## AJ1. Ver status
+
+~~~bash
+sudo ufw status verbose
+~~~
+
+Via MCP: `firewall_status` (leitura, sem confirmação).
+
+## AJ2. Liberar porta
+
+~~~bash
+sudo ufw allow PORTA/tcp
+~~~
+
+Via MCP: `firewall_allow` (CRITICAL, exige `CONFIRMO`).
+
+## AJ3. Remover regra
+
+~~~bash
+sudo ufw delete allow PORTA/tcp
+~~~
+
+Via MCP: `firewall_delete_rule` (CRITICAL, exige `CONFIRMO`).
+
+## AJ4. Antes de liberar qualquer porta nova
+
+Pergunte: esse serviço realmente precisa ser alcançável da internet, ou só localmente (via Nginx em loopback)? Regra geral desta infra: minimizar exposição direta, preferir `127.0.0.1:PORTA` + Nginx como gateway com TLS/auth.
+
+## AJ5. Conferir o que está realmente escutando
+
+~~~bash
+sudo ss -tlnp
+~~~
+
+Via MCP: `infra_listening_ports`. Cruzar com `firewall_status` — uma porta pode estar aberta no processo mas bloqueada no firewall (ou vice-versa se a regra foi mal feita).
 
 ---
 
@@ -1161,13 +1230,21 @@ ssh root@72.61.48.156
 ## Z3. Serviços críticos
 
 ~~~bash
-systemctl is-active nginx omie-mcp whatsapp-mcp verticalparts-infra-mcp docker
+systemctl is-active nginx omie-mcp whatsapp-mcp verticalparts-infra-mcp vpprd-mcp stt-service telegram-claude docker
 ~~~
+
+## Z3A. Firewall
+
+~~~bash
+sudo ufw status verbose
+~~~
+
+Se `inactive`, isso é uma regressão de segurança, não algo a ignorar — ver PARTE AJ.
 
 ## Z4. Portas
 
 ~~~bash
-ss -ltnp
+sudo ss -tlnp
 ~~~
 
 ## Z5. Endpoints

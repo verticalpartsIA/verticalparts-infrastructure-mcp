@@ -678,6 +678,53 @@ Se inventário estiver ausente/corrompido:
 
 ---
 
+### FR-041 — Firewall (adicionado 2026-09-19)
+
+Deve suportar:
+- status (leitura);
+- allow;
+- delete rule.
+
+Mutações exigem CONFIRMO.
+
+Critério de aceite: uma porta nova exposta por qualquer serviço deve poder ser auditada (`firewall_status`) e restringida sem depender de break-glass.
+
+---
+
+### FR-042 — Docker network/volume (adicionado 2026-09-19)
+
+Deve suportar:
+- listagem de redes e volumes (leitura);
+- remoção de rede/volume.
+
+Remoção exige CONFIRMO_DESTRUTIVO e deve recusar automaticamente quando ainda houver container anexado (rede) ou referenciando (volume) — a tool não deve depender só da confirmação humana para essa checagem de segurança.
+
+`docker_compose_action` deve suportar a ação `down`, classificada como DESTRUCTIVE (diferente de pull/build/up/restart, que são CRITICAL).
+
+---
+
+### FR-043 — Observabilidade de host (adicionado 2026-09-19)
+
+Deve suportar, em leitura:
+- portas TCP em escuta e processo responsável;
+- processos PM2 sob root (categoria de runtime separada de systemd/Docker);
+- crontab do root e jobs de `/etc/cron.d` (schedule + comando, não só nome de arquivo).
+
+`infra_pm2_list` nunca deve retornar `pm2_env.env` (variáveis de ambiente do processo) — segredos de app não podem vazar por uma tool de observabilidade.
+
+---
+
+### FR-044 — Remoção segura de arquivo/diretório (adicionado 2026-09-19)
+
+`file_delete` deve:
+1. recusar `.env`;
+2. normalizar barra final;
+3. resolver o caminho real no host remoto (`realpath -m`) e revalidar contra as raízes permitidas — não confiar só na checagem léxica local, que não enxerga symlinks;
+4. fazer backup `.tar.gz` do alvo, como irmão fora da árvore sendo removida, antes de apagar;
+5. exigir CONFIRMO_DESTRUTIVO.
+
+---
+
 ## 5. Requisitos não funcionais
 
 ### NFR-001 — Segurança
@@ -979,7 +1026,7 @@ P1:
 
 P2:
 - backups/snapshots;
-- firewall;
+- ~~firewall~~ (implementado em 2026-09-19: `firewall_status/allow/delete_rule`);
 - certificados;
 - disk maintenance;
 - log rotation;
