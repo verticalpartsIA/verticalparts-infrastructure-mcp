@@ -20,6 +20,9 @@ async def _health(url: str, mode: str = "http") -> dict[str, Any]:
 
 async def deploy_project(name: str, branch: str | None = None) -> dict[str, Any]:
     p = get_project(name)
+    deploy_cfg = p.get("deploy") or {}
+    if deploy_cfg.get("mode") == "external":
+        raise RuntimeError(f"Projeto {name} usa deploy externo e não pode ser publicado por deploy_project")
     path = p["path"]
     qp = shlex.quote(path)
 
