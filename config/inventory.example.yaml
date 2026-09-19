@@ -1,0 +1,26 @@
+version: 1
+# Exemplo sem segredos. Copie para config/inventory.yaml no ambiente real.
+environments:
+  vps:
+    provider: hostinger
+    vm_id: "CHANGE_ME"
+    role: production
+  shared_hosting:
+    provider: hostinger
+    role: production
+
+domains:
+  example.vpsistema.com:
+    environment: shared_hosting
+    status: production
+    source_of_truth: dns
+    notes: []
+
+  migrated-example.vpsistema.com:
+    environment: vps
+    status: production
+    source_of_truth: dns
+    notes:
+      - migrated_from_shared_hosting
+
+aliases: {}
