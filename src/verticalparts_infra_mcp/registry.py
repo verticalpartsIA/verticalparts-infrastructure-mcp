@@ -15,6 +15,13 @@ def load_projects() -> dict[str, Any]:
     return data.get("projects", {})
 
 
+def load_inventory() -> dict[str, Any]:
+    path: Path = settings.inventory_file
+    if not path.exists():
+        raise RuntimeError(f"Inventário de infraestrutura não encontrado: {path}")
+    return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+
+
 def get_project(name: str) -> dict[str, Any]:
     projects = load_projects()
     if name not in projects:
