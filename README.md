@@ -136,6 +136,13 @@ Legacy redirect:
 
 VPClick foi migrado do shared hosting para VPS. O cadastro antigo no shared hosting pode continuar existindo.
 
+Homologação do Shared Hosting em 2026-09-19:
+- 9 websites Node.js na conta Cloud com auto-deploy Git ativo;
+- 5 websites `other` na conta Premium sem auto-deploy Git Hostinger;
+- PHP 8.3.33 está disponível para os cinco `other`, mas a classificação real deve considerar os arquivos/runtime;
+- `hostinger_ssl_status` foi validada pelo protocolo MCP real contra VPRequisições;
+- o catálogo carregado após restart contém 49 tools.
+
 ---
 
 ## Regra Docker
@@ -156,7 +163,7 @@ VPRequisições está no shared hosting.
 
 ## Tools
 
-O servidor homologado expõe 35 tools, incluindo:
+O servidor homologado em 2026-09-19 expõe 49 tools, incluindo:
 
 Inventário:
 - infra_status
@@ -164,12 +171,17 @@ Inventário:
 - infra_inventory
 
 Hostinger:
-- hostinger_list_vps
-- hostinger_list_websites
-- hostinger_vps_status
-- hostinger_vps_metrics
-- start/stop/restart
-- hostinger_api_call
+- VPS list/status/metrics/start/stop/restart
+- Shared Hosting: orders/websites
+- files + safe file read
+- Git auto-deploy status
+- SSL status
+- databases + cron jobs
+- Node.js settings/builds/build logs/runtime logs
+- env key names only
+- Node.js vulnerabilities
+- controlled Node.js restart
+- hostinger_api_call as fallback
 
 Linux:
 - systemd status/logs/start/stop/restart
