@@ -442,6 +442,30 @@ Se usar Hostinger shared hosting:
 
 ## 22. Hostinger API
 
+Para Shared Hosting, prefira primeiro as tools semânticas disponíveis:
+- hostinger_list_orders;
+- hostinger_list_websites;
+- hostinger_website_files;
+- hostinger_website_file_read;
+- hostinger_git_autodeploy_status;
+- hostinger_ssl_status;
+- hostinger_list_databases;
+- hostinger_list_cron_jobs;
+- hostinger_nodejs_settings;
+- hostinger_nodejs_builds;
+- hostinger_nodejs_build_logs;
+- hostinger_nodejs_runtime_logs;
+- hostinger_nodejs_env_keys;
+- hostinger_nodejs_vulnerabilities;
+- hostinger_nodejs_restart.
+
+Regras:
+- `hostinger_nodejs_restart` exige `CONFIRMO`;
+- nunca interpretar valor mascarado de env como valor real;
+- não usar leitura de arquivo para tentar extrair segredo;
+- `website_type=other` exige inspeção do conteúdo/runtime antes de chamar o site de PHP;
+- VPClick no Shared Hosting é legado; produção canônica permanece Docker na VPS.
+
 Quando precisar endpoint não encapsulado:
 
 1. consultar documentação oficial atual;
