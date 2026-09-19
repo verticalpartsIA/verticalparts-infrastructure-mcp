@@ -15,7 +15,7 @@ projects:
   whatsapp-mcp:
     description: "MCP WhatsApp VerticalParts"
     path: "CHANGE_ME_AFTER_DISCOVERY"
-    repo: "https://github.com/verticalpartsIA/008_BorderoDiario.git"
+    repo: null
     branch: null
     runtime:
       type: systemd
@@ -47,3 +47,8 @@ projects:
 # Copie este arquivo para config/projects.yaml somente no ambiente de execução.
 # Confirme caminhos, branches e health checks reais antes de habilitar mutações.
 # config/projects.yaml é ignorado pelo Git para não expor inventário operacional.
+
+# Observação pós-auditoria:
+# - não associe whatsapp-mcp a um repositório por memória ou sem evidência;
+# - o endpoint remoto e o serviço podem ser conhecidos sem que o repo de origem esteja confirmado;
+# - VPClick é external deploy e deploy_project deve recusá-lo.
