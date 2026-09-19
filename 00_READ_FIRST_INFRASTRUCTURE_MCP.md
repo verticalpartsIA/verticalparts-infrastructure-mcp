@@ -81,6 +81,17 @@ Após auditoria prática pelo Claude e correção do runtime:
 - seu runtime é `docker_compose`;
 - seu deploy é explicitamente externo, via GitHub Actions, workflow `.github/workflows/deploy-vps.yml`.
 
+- o servidor MCP foi reiniciado e homologado com **49 tools** via `tools/list`;
+- o novo plano semântico de Shared Hosting foi carregado no runtime;
+- `hostinger_ssl_status` foi chamado pelo protocolo MCP real contra `vprequisicoes.vpsistema.com` e retornou SSL ativo, HTTPS redirect ativo e `isError=false`;
+- a API Hostinger confirmou dois planos de hosting e 14 websites acessíveis;
+- a conta Cloud concentra 9 registros Node.js com integração Git/auto-deploy ativa;
+- a conta Premium concentra 5 registros `other`; PHP 8.3.33 está disponível para todos, mas a classificação real deve considerar os arquivos: `catraca`, `interativo` e `visitas` aparecem como predominantemente estáticos; `assetmanager` inclui `default.php`; `suporte` inclui `api.php`;
+- os 5 sites da conta Premium não possuem auto-deploy Git Hostinger configurado;
+- o cadastro Hostinger de `vpclick.vpsistema.com` ainda possui integração Git/Node ativa, porém permanece **legado**: produção canônica é Docker na VPS. Não desativar o registro legado sem análise e autorização explícita.
+
+As novas tools semânticas de Shared Hosting cobrem leitura de arquivos, leitura segura de conteúdo, auto-deploy Git, SSL, bancos, cron, settings/builds/logs/runtime de Node.js, nomes de variáveis de ambiente, vulnerabilidades e restart de Node.js com confirmação.
+
 O antigo erro `permission denied` no socket Docker não deve ser tratado como estado atual. A implementação foi corrigida para usar o caminho privilegiado já previsto no host. Se o erro reaparecer, trate como regressão de permissão/configuração e valide o código e sudoers antes de alterar grupo Docker.
 
 Uma desconexão momentânea do cliente MCP logo após `systemctl restart verticalparts-infra-mcp.service` é esperada porque sessões Streamable HTTP existentes são encerradas. Se houver reconexão automática e chamadas subsequentes retornarem `200`, isso não caracteriza incidente persistente.
