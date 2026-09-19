@@ -198,7 +198,7 @@ async def service_stop(service: str, confirmation: str | None = None) -> Any:
 async def docker_ps(all_containers: bool = True) -> Any:
     """Lista containers Docker."""
     arg = "-a" if all_containers else ""
-    return await ssh.run(f"docker ps {arg} --format '{{{{json .}}}}'", check=False)
+    return await ssh.run(f"sudo docker ps {arg} --format '{{{{json .}}}}'", check=False)
 
 
 @mcp.tool()
