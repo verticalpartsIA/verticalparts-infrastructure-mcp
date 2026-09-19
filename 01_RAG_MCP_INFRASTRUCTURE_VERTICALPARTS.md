@@ -266,11 +266,25 @@ Inventário:
 Hostinger:
 - hostinger_list_vps
 - hostinger_list_websites
+- hostinger_list_orders
 - hostinger_vps_status
 - hostinger_vps_metrics
 - hostinger_vps_start
 - hostinger_vps_stop
 - hostinger_vps_restart
+- hostinger_website_files
+- hostinger_website_file_read
+- hostinger_git_autodeploy_status
+- hostinger_ssl_status
+- hostinger_list_databases
+- hostinger_list_cron_jobs
+- hostinger_nodejs_settings
+- hostinger_nodejs_builds
+- hostinger_nodejs_build_logs
+- hostinger_nodejs_runtime_logs
+- hostinger_nodejs_env_keys
+- hostinger_nodejs_vulnerabilities
+- hostinger_nodejs_restart
 - hostinger_api_call
 
 systemd:
@@ -313,7 +327,25 @@ Deploy:
 Break-glass:
 - infra_exec_command
 
-Total observado em homologação: 35 tools.
+Total observado em homologação em 2026-09-19: 49 tools.
+
+---
+
+## RAG-009A — Shared Hosting Hostinger homologado em 2026-09-19
+
+Estado vivo observado:
+
+- 14 websites acessíveis pela API Hosting;
+- dois planos/ordens: um Cloud e um Premium;
+- 9 sites classificados pela Hostinger como `nodejs` na conta Cloud, todos com auto-deploy Git ativo;
+- 5 sites classificados como `other` na conta Premium, todos com PHP 8.3.33 disponível, mas sem auto-deploy Git Hostinger;
+- classificação `other` não prova aplicação PHP: observar arquivos reais e runtime antes de concluir;
+- `vprequisicoes.vpsistema.com` usa Node.js 22, build Hostinger/Passenger e integração Git com `verticalpartsIA/003_requisicoes` branch `main`;
+- SSL de `vprequisicoes.vpsistema.com` foi testado pela própria tool MCP `hostinger_ssl_status` e retornou ativo com redirect HTTPS;
+- `vpclick.vpsistema.com` continua cadastrado como Node.js no Shared Hosting e com auto-deploy Git, mas essa superfície é legado. Produção canônica permanece Docker na VPS.
+
+Regra: preferir as tools semânticas acima ao `hostinger_api_call`. O fallback genérico fica para endpoints oficiais ainda não encapsulados.
+
 
 ---
 
