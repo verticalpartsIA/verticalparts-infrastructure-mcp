@@ -144,17 +144,46 @@ async def infra_listening_ports() -> Any:
 
 
 @mcp.tool()
-async def infra_pm2_list() -> Any:
-    """Lista processos gerenciados por PM2 sob o usuário root (PM2_HOME=/root/.pm2). Categoria separada de systemd e Docker."""
-    return await ssh.run("sudo env HOME=/root PM2_HOME=/root/.pm2 pm2 jlist", check=False)
+async def infra_pm2_list() -> dict[str, Any]:
+    """Lista processos gerenciados por PM2 sob o usuário root (PM2_HOME=/root/.pm2), sem variáveis de ambiente. Categoria separada de systemd e Docker."""
+    result = await ssh.run("sudo env HOME=/root PM2_HOME=/root/.pm2 pm2 jlist", check=False)
+    if result["exit_status"] != 0 or not result["stdout"].strip():
+        return {"exit_status": result["exit_status"], "stderr": result["stderr"], "processes": []}
+    try:
+        raw = json.loads(result["stdout"])
+    except json.JSONDecodeError:
+        return {"exit_status": result["exit_status"], "stderr": "Saída não era JSON válido", "processes": []}
+    processes = []
+    for proc in raw:
+        pm2_env = proc.get("pm2_env") or {}
+        # pm2_env.env carrega as variáveis de ambiente do processo (podem conter segredos);
+        # nunca é retornado. Só campos operacionais são expostos.
+        processes.append(
+            {
+                "pm_id": proc.get("pm_id"),
+                "name": proc.get("name"),
+                "pid": proc.get("pid"),
+                "status": pm2_env.get("status"),
+                "restart_time": pm2_env.get("restart_time"),
+                "uptime_since": pm2_env.get("pm_uptime"),
+                "cwd": pm2_env.get("pm_cwd"),
+                "exec_interpreter": pm2_env.get("exec_interpreter"),
+                "monit": proc.get("monit"),
+            }
+        )
+    return {"exit_status": result["exit_status"], "processes": processes}
 
 
 @mcp.tool()
 async def infra_cron_list() -> Any:
-    """Lista o crontab do root e os jobs declarados em /etc/cron.d."""
+    """Lista o crontab do root e o conteúdo (schedules/comandos) dos jobs declarados em /etc/cron.d."""
     return await ssh.run(
         "echo '--- crontab root ---'; sudo crontab -l -u root 2>/dev/null; "
-        "echo '--- /etc/cron.d ---'; sudo ls -la /etc/cron.d/",
+        "echo '--- /etc/cron.d ---'; "
+        "for f in /etc/cron.d/*; do "
+        "[ -f \"$f\" ] || continue; "
+        "echo \"# $f\"; sudo cat \"$f\"; echo; "
+        "done",
         check=False,
     )
 
@@ -720,19 +749,31 @@ async def file_delete(path: str, confirmation: str | None = None) -> dict[str, A
     require_confirmation(Risk.DESTRUCTIVE, confirmation)
     if path.endswith("/.env") or path.endswith(".env"):
         raise PermissionError("Remoção direta de .env bloqueada.")
-    ssh.assert_allowed_path(path)
-    q = shlex.quote(path)
-    backup_path = f"{path}.infra-mcp-deleted-{_backup_timestamp()}.tar.gz"
+    clean_path = path.rstrip("/")
+    if not clean_path:
+        raise PermissionError("Caminho inválido")
+    ssh.assert_allowed_path(clean_path)
+    # Resolve o caminho real no host remoto (segue symlinks, colapsa '..') e
+    # revalida contra as raízes permitidas antes de tocar no filesystem: a
+    # checagem puramente léxica acima não enxerga symlinks intermediários.
+    q = shlex.quote(clean_path)
+    real = await ssh.run(f"realpath -m {q}", check=False)
+    if real["exit_status"] != 0:
+        raise RuntimeError(f"Não foi possível resolver o caminho real: {real['stderr']}")
+    real_path = real["stdout"].strip()
+    ssh.assert_allowed_path(real_path)
+    qr = shlex.quote(real_path)
+    backup_path = f"{real_path}.infra-mcp-deleted-{_backup_timestamp()}.tar.gz"
     qb = shlex.quote(backup_path)
     cmd = (
-        f"if [ ! -e {q} ]; then echo NOT_FOUND >&2; exit 1; fi; "
-        f"sudo tar czf {qb} -C $(dirname {q}) $(basename {q}) && "
+        f"if [ ! -e {qr} ]; then echo NOT_FOUND >&2; exit 1; fi; "
+        f"sudo tar czf {qb} -C $(dirname {qr}) $(basename {qr}) && "
         f"sudo chmod 600 {qb} && "
-        f"sudo rm -rf {q} && echo OK"
+        f"sudo rm -rf {qr} && echo OK"
     )
     result = await ssh.run(cmd, timeout=300, check=False)
-    write_audit("file_delete", {"path": path, "backup": backup_path, "ok": result["exit_status"] == 0})
-    return {**result, "backup": backup_path}
+    write_audit("file_delete", {"path": real_path, "backup": backup_path, "ok": result["exit_status"] == 0})
+    return {**result, "backup": backup_path, "resolved_path": real_path}
 
 
 @mcp.tool()
