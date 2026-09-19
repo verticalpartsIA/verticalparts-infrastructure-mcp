@@ -4,5 +4,6 @@ __pycache__/
 *.pyc
 data/
 config/projects.yaml
+config/inventory.yaml
 secrets/
 *.bak
