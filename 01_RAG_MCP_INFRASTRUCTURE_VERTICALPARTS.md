@@ -67,6 +67,34 @@ Nunca altere produção para “bater com a documentação” sem provar que a d
 
 ---
 
+## RAG-002A — Homologação viva de Docker e VPClick em 2026-09-19
+
+Evidência operacional validada depois da correção:
+
+- `infra_list_projects` retorna `omie-mcp`, `whatsapp-mcp` e `vpclick`;
+- `vpclick.path = /docker/vpclick`;
+- `vpclick.runtime.type = docker_compose`;
+- `vpclick.runtime.container = vpclick-vpclick-1`;
+- `vpclick.deploy.mode = external`;
+- `vpclick.deploy.provider = github_actions`;
+- `vpclick.deploy.workflow = .github/workflows/deploy-vps.yml`;
+- `docker_ps` executou com sucesso via `sudo docker`, `exit_status: 0`;
+- `docker_compose_action("/docker/vpclick", "ps")` executou com sucesso;
+- container `vpclick-vpclick-1` observado `running`;
+- publicação observada: `127.0.0.1:8091->80/tcp`.
+
+Interpretação obrigatória para LLM:
+
+- não chamar o erro antigo de socket Docker de "intermitente" sem nova evidência;
+- o estado atual conhecido é "corrigido e homologado";
+- se `permission denied` reaparecer, isso é regressão a investigar;
+- não adicionar `infra-mcp` ao grupo `docker` automaticamente;
+- preferir o caminho controlado `sudo docker` já previsto pela política de privilégio da VPS;
+- não executar `deploy_project("vpclick")`: seu deploy é externo e deve ser tratado pelo GitHub Actions;
+- Infrastructure MCP pode inspecionar/reiniciar o runtime Docker quando autorizado, mas não deve substituir silenciosamente o pipeline de publicação do VPClick.
+
+---
+
 ## RAG-003 — Topologia conhecida
 
 Snapshot em 2026-09-19. Validar antes de mutações.
