@@ -37,6 +37,53 @@ def _container_name(name: str) -> str:
     return name
 
 
+def _hosting_username(username: str) -> str:
+    value = (username or "").strip()
+    if not re.fullmatch(r"u\d+", value):
+        raise ValueError("Username de hospedagem Hostinger inválido")
+    return value
+
+
+def _hosting_domain(domain: str) -> str:
+    value = (domain or "").strip().lower()
+    if not re.fullmatch(
+        r"(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}",
+        value,
+    ):
+        raise ValueError("Domínio inválido")
+    return value
+
+
+def _hosting_relative_path(path: str, *, allow_empty: bool = False) -> str:
+    value = (path or "").strip()
+    if not value and allow_empty:
+        return ""
+    if not value or value.startswith("/") or "\\" in value:
+        raise ValueError("Caminho deve ser relativo ao document root")
+    parts = [p for p in value.split("/") if p]
+    if any(p in {".", ".."} for p in parts):
+        raise ValueError("Path traversal não permitido")
+    lowered = value.lower()
+    secret_names = {
+        ".env",
+        "id_rsa",
+        "id_ed25519",
+        "credentials.json",
+        "service-account.json",
+    }
+    base = parts[-1].lower() if parts else ""
+    if base in secret_names or base.startswith(".env.") or base.endswith((".pem", ".key", ".p12", ".pfx")):
+        raise PermissionError("Leitura de arquivo potencialmente secreto bloqueada")
+    return value
+
+
+def _hosting_build_uuid(build_uuid: str) -> str:
+    value = (build_uuid or "").strip()
+    if not re.fullmatch(r"[A-Za-z0-9-]{8,80}", value):
+        raise ValueError("UUID de build inválido")
+    return value
+
+
 @mcp.tool()
 async def infra_status() -> dict[str, Any]:
     """Health geral do host Linux administrado: uptime, memória, disco e load."""
@@ -84,6 +131,248 @@ async def hostinger_list_websites() -> Any:
     """Lista os sites da hospedagem compartilhada acessíveis pela API Hostinger."""
     result = await hostinger.list_websites()
     write_audit("hostinger_list_websites", {"ok": True})
+    return result
+
+
+@mcp.tool()
+async def hostinger_list_orders() -> Any:
+    """Lista os planos/ordens de Shared Hosting acessíveis pela API Hostinger."""
+    result = await hostinger.list_orders()
+    write_audit("hostinger_list_orders", {"ok": True})
+    return result
+
+
+@mcp.tool()
+async def hostinger_website_files(
+    username: str,
+    domain: str,
+    directory: str = "",
+    max_depth: int = 1,
+    max_items: int = 100,
+    offset: int = 0,
+) -> Any:
+    """Lista arquivos e diretórios do document root de um site no Shared Hosting. Somente leitura."""
+    user = _hosting_username(username)
+    host = _hosting_domain(domain)
+    folder = _hosting_relative_path(directory, allow_empty=True)
+    depth = max(0, min(int(max_depth), 10))
+    limit = max(1, min(int(max_items), 1000))
+    start = max(0, int(offset))
+    result = await hostinger.list_website_files(user, host, folder, depth, limit, start)
+    write_audit(
+        "hostinger_website_files",
+        {"username": user, "domain": host, "directory": folder, "ok": True},
+    )
+    return result
+
+
+@mcp.tool()
+async def hostinger_website_file_read(
+    username: str,
+    domain: str,
+    path: str,
+    from_line: int = 0,
+    max_lines: int = 500,
+) -> Any:
+    """Lê arquivo texto do document root via API Hostinger. Segredos e caminhos relativos inseguros são bloqueados."""
+    user = _hosting_username(username)
+    host = _hosting_domain(domain)
+    safe_path = _hosting_relative_path(path)
+    start = max(0, int(from_line))
+    lines = max(1, min(int(max_lines), 5000))
+    result = await hostinger.get_website_file_content(user, host, safe_path, start, lines)
+    write_audit(
+        "hostinger_website_file_read",
+        {"username": user, "domain": host, "path": safe_path, "ok": True},
+    )
+    return result
+
+
+@mcp.tool()
+async def hostinger_git_autodeploy_status(username: str, domain: str) -> Any:
+    """Consulta repositório, branch e estado do auto-deploy Git de um site no Shared Hosting."""
+    user = _hosting_username(username)
+    host = _hosting_domain(domain)
+    result = await hostinger.get_git_autodeploy(user, host)
+    write_audit("hostinger_git_autodeploy_status", {"username": user, "domain": host, "ok": True})
+    return result
+
+
+@mcp.tool()
+async def hostinger_ssl_status(username: str, domain: str) -> Any:
+    """Consulta certificado SSL e redirect HTTPS de um site no Shared Hosting."""
+    user = _hosting_username(username)
+    host = _hosting_domain(domain)
+    result = await hostinger.get_ssl_status(user, host)
+    write_audit("hostinger_ssl_status", {"username": user, "domain": host, "ok": True})
+    return result
+
+
+@mcp.tool()
+async def hostinger_list_databases(
+    username: str,
+    page: int = 1,
+    per_page: int = 25,
+    domain: str | None = None,
+    search: str | None = None,
+) -> Any:
+    """Lista bancos MySQL do Shared Hosting, sem senhas. Pode filtrar por domínio ou texto."""
+    user = _hosting_username(username)
+    host = _hosting_domain(domain) if domain else None
+    p = max(1, int(page))
+    limit = max(1, min(int(per_page), 100))
+    query = search.strip()[:512] if search else None
+    result = await hostinger.list_databases(user, p, limit, host, query)
+    write_audit(
+        "hostinger_list_databases",
+        {"username": user, "domain": host, "search": query, "ok": True},
+    )
+    return result
+
+
+@mcp.tool()
+async def hostinger_list_cron_jobs(username: str) -> Any:
+    """Lista cron jobs configurados em uma conta de Shared Hosting."""
+    user = _hosting_username(username)
+    result = await hostinger.list_cron_jobs(user)
+    write_audit("hostinger_list_cron_jobs", {"username": user, "ok": True})
+    return result
+
+
+@mcp.tool()
+async def hostinger_nodejs_settings(username: str, domain: str) -> Any:
+    """Consulta versão Node, package manager, build script, output e entry file de um site Node.js."""
+    user = _hosting_username(username)
+    host = _hosting_domain(domain)
+    result = await hostinger.get_nodejs_settings(user, host)
+    write_audit("hostinger_nodejs_settings", {"username": user, "domain": host, "ok": True})
+    return result
+
+
+@mcp.tool()
+async def hostinger_nodejs_builds(
+    username: str,
+    domain: str,
+    page: int = 1,
+    per_page: int = 25,
+    states: list[str] | None = None,
+) -> Any:
+    """Lista builds Node.js e seus commits/estados. states aceita pending, running, completed e failed."""
+    user = _hosting_username(username)
+    host = _hosting_domain(domain)
+    allowed = {"pending", "running", "completed", "failed"}
+    clean_states = None
+    if states:
+        clean_states = [s.strip().lower() for s in states]
+        invalid = sorted(set(clean_states) - allowed)
+        if invalid:
+            raise ValueError(f"Estados de build inválidos: {invalid}")
+    p = max(1, int(page))
+    limit = max(1, min(int(per_page), 100))
+    result = await hostinger.list_nodejs_builds(user, host, p, limit, clean_states)
+    write_audit(
+        "hostinger_nodejs_builds",
+        {"username": user, "domain": host, "states": clean_states, "ok": True},
+    )
+    return result
+
+
+@mcp.tool()
+async def hostinger_nodejs_build_logs(
+    username: str,
+    domain: str,
+    build_uuid: str,
+    from_line: int = 0,
+) -> Any:
+    """Consulta o log de um build Node.js específico no Shared Hosting."""
+    user = _hosting_username(username)
+    host = _hosting_domain(domain)
+    build = _hosting_build_uuid(build_uuid)
+    start = max(0, int(from_line))
+    result = await hostinger.get_nodejs_build_logs(user, host, build, start)
+    write_audit(
+        "hostinger_nodejs_build_logs",
+        {"username": user, "domain": host, "build_uuid": build, "from_line": start, "ok": True},
+    )
+    return result
+
+
+@mcp.tool()
+async def hostinger_nodejs_runtime_logs(
+    username: str,
+    domain: str,
+    period: str = "1h",
+    from_line: int | None = None,
+    limit: int = 1000,
+    levels: list[str] | None = None,
+) -> Any:
+    """Consulta logs de runtime Node.js. Primeira leitura usa period=1h|1d|1w|1m; polling usa from_line."""
+    user = _hosting_username(username)
+    host = _hosting_domain(domain)
+    allowed_periods = {"1h", "1d", "1w", "1m"}
+    clean_period = (period or "1h").strip().lower()
+    if from_line is None and clean_period not in allowed_periods:
+        raise ValueError(f"period deve ser um de {sorted(allowed_periods)}")
+    start = max(1, int(from_line)) if from_line is not None else None
+    count = max(1, min(int(limit), 5000))
+    clean_levels = None
+    if levels:
+        clean_levels = [s.strip().upper() for s in levels if s.strip()]
+        if any(not re.fullmatch(r"[A-Z0-9_-]+", s) for s in clean_levels):
+            raise ValueError("Nível de log inválido")
+    result = await hostinger.get_nodejs_runtime_logs(
+        user,
+        host,
+        period=clean_period,
+        from_line=start,
+        limit=count,
+        levels=clean_levels,
+    )
+    write_audit(
+        "hostinger_nodejs_runtime_logs",
+        {"username": user, "domain": host, "period": clean_period, "from_line": start, "levels": clean_levels, "ok": True},
+    )
+    return result
+
+
+@mcp.tool()
+async def hostinger_nodejs_env_keys(username: str, domain: str) -> dict[str, Any]:
+    """Lista somente nomes de variáveis de ambiente Node.js. Valores nunca são retornados."""
+    user = _hosting_username(username)
+    host = _hosting_domain(domain)
+    result = await hostinger.list_nodejs_environment_variables(user, host)
+    keys: list[str] = []
+    if isinstance(result, list):
+        for item in result:
+            if isinstance(item, dict) and item.get("key"):
+                keys.append(str(item["key"]))
+    keys = sorted(set(keys))
+    write_audit("hostinger_nodejs_env_keys", {"username": user, "domain": host, "count": len(keys), "ok": True})
+    return {"username": user, "domain": host, "keys": keys}
+
+
+@mcp.tool()
+async def hostinger_nodejs_vulnerabilities(username: str, domain: str) -> Any:
+    """Lista vulnerabilidades de dependências detectadas pela Hostinger em um app Node.js. Somente leitura."""
+    user = _hosting_username(username)
+    host = _hosting_domain(domain)
+    result = await hostinger.list_nodejs_vulnerabilities(user, host)
+    write_audit("hostinger_nodejs_vulnerabilities", {"username": user, "domain": host, "ok": True})
+    return result
+
+
+@mcp.tool()
+async def hostinger_nodejs_restart(
+    username: str,
+    domain: str,
+    confirmation: str | None = None,
+) -> Any:
+    """Reinicia o processo Node.js de um site sem rebuild/redeploy. Exige confirmation='CONFIRMO'."""
+    require_confirmation(Risk.CRITICAL, confirmation)
+    user = _hosting_username(username)
+    host = _hosting_domain(domain)
+    result = await hostinger.restart_nodejs(user, host)
+    write_audit("hostinger_nodejs_restart", {"username": user, "domain": host, "ok": True})
     return result
 
 
