@@ -144,11 +144,13 @@ Responsabilidades:
 - key auth;
 - known_hosts;
 - command execution;
-- path allowlist;
+- path allowlist (`assert_allowed_path`, rejeita qualquer `..` desde 2026-09-19 — ver T-008);
 - leitura/escrita controlada.
 
 Estado atual:
 MCP e target estão na mesma VPS, então host é 127.0.0.1.
+
+Limitação conhecida desde 2026-09-19: as tools que passam por `ssh.write_text`/`assert_allowed_path` (`file_write`, `env_set`, `env_remove`, `git_pull`, `git_fetch`) rodam como usuário `infra-mcp` **sem sudo**. Isso bloqueia escrita em qualquer caminho `root:root`, incluindo o próprio `/opt/verticalparts-infrastructure-mcp`. Só `infra_exec_command` (break-glass, roda com `sudo`) consegue escrever ali. Ver 05_RUNBOOK PARTE G para o fluxo de auto-atualização real (inclui `git config --global --add safe.directory`, necessário por "dubious ownership" do Git ao operar um repositório de outro dono).
 
 Arquitetura futura:
 MCP externo -> SSH IP/hostname da VPS.
@@ -716,6 +718,24 @@ Mitigação:
 - health;
 - rollback.
 
+### T-008 — firewall/serviços de rede não auditados no host
+
+Risco observado em 2026-09-19: firewall totalmente inativo (deixava toda porta em `0.0.0.0` acessível pela internet) e um proxy Tor SOCKS aberto (`0.0.0.0:9050`) com evidência real de abuso (~15 mil conexões).
+
+Mitigação:
+- `ufw` ativo por padrão, `default deny incoming`, revisar antes de liberar porta nova (`firewall_status`/`firewall_allow`);
+- `infra_listening_ports` (`ss -tlnp`) para auditar o que está de fato escutando e em qual interface;
+- serviços instalados mas não usados (ex.: WARP nunca configurado) devem ser desabilitados, não só ignorados;
+- qualquer novo domínio/serviço exposto via Nginx deve ter autenticação na camada de gateway (X-API-Key ou equivalente), não só na aplicação.
+
+### T-009 — path traversal em tools de arquivo
+
+Risco corrigido em 2026-09-19 (achado de review automatizado): `assert_allowed_path` fazia checagem léxica por prefixo de string, então um caminho como `/opt/../etc/hostname` passava por começar com `/opt/`, mas o shell remoto resolvia fora da raiz permitida — explorável especialmente via `file_delete` (`sudo rm -rf`).
+
+Mitigação:
+- `assert_allowed_path` rejeita qualquer caminho com segmento `..`;
+- `file_delete` adicionalmente resolve o caminho real via `realpath -m` no host remoto (segue symlinks) e revalida contra as raízes permitidas antes de montar o comando destrutivo.
+
 ---
 
 ## 18. Sudo
@@ -763,16 +783,20 @@ Não documentar private key.
 
 ## 21. Estado de runtimes conhecidos
 
-systemd ativos observados:
+systemd ativos observados em 2026-09-19 (sessão 2):
 - nginx
 - omie-mcp
-- stt-service
-- telegram-claude
+- stt-service (transcrição de áudio local, faster-whisper, para o pv360)
+- telegram-claude (ponte Telegram <-> Claude/Fable 5)
 - verticalparts-infra-mcp
-- vpprd-mcp
+- vpprd-mcp (MCP "vpprd-browser", porta 3100, ver §23 sobre exposição via mcp.vpsistema.com)
 - whatsapp-mcp
 - docker
 - ssh
+
+Desativados deliberadamente em 2026-09-19: `tor@default.service`, `tor.service`, `warp-svc.service` (ver RAG-009B / T-008). Removido: container `hermes-agent-god7` (não é serviço systemd, era Docker Compose — ver §22).
+
+Categoria adicional descoberta em 2026-09-19: PM2 (`/root/.pm2`), sem processos ativos no momento da auditoria; `/opt/vp-bot` é um bot WhatsApp Node.js dormente que usaria essa categoria se reativado. `infra_pm2_list` cobre essa categoria agora.
 
 Falha observada:
 - privoxy.service failed
@@ -784,15 +808,20 @@ registrar estado, não “consertar” serviço desconhecido sem entender necess
 
 ## 22. Docker conhecido
 
-Containers observados:
-- VPClick
-- Evolution API
-- Postgres/Redis associados
-- componentes legados/stopped.
+Containers observados em 2026-09-19 (sessão 2), com detalhamento completo em `config/projects.yaml`:
+- `vpclick-vpclick-1` — produção, ver §2.3B;
+- `evolution-api` (+ `evolution-postgres`, `evolution-redis`) — backend WhatsApp da instância `pv360`/posvenda360;
+- `n8n` — automação de workflows, parado (SIGTERM limpo, não crash; banco `n8n` existe e autentica normalmente — testado);
+- `postgres`/`redis` do projeto `vp-infra` — compartilhados, usados pelo n8n;
+- `traefik-traefik-1` — reverse proxy do template Hostinger; uso real limitado (sem porta mapeada ao host, nenhum outro serviço tem labels de roteamento);
+- ~~`hermes-agent-god7`~~ — **removido em 2026-09-19** (agente de terminal do template Hostinger, não confundir com "Hermes AI Agent"/NousResearch; sem uso relevante, sem rota externa funcional). Backup em `/root/hermes-agent-god7-backup-*.tar.gz`.
+
+Redes/volumes Docker órfãos do Supabase (`supabase_network_*`, ligados a `/opt/vprequisicoes/supabase/functions`) foram removidos por limpeza em 2026-09-19 — resíduo de `supabase functions serve`, sem containers ativos.
 
 Regra específica:
 não inferir que todo container stopped é lixo.
 Preservar volumes usados por serviços ainda relevantes.
+Antes de remover rede/volume, usar `docker_network_rm`/`docker_volume_rm` (recusam automaticamente se houver container anexado/referenciando).
 
 ---
 
@@ -800,11 +829,11 @@ Preservar volumes usados por serviços ainda relevantes.
 
 Domínios conhecidos na VPS podem incluir:
 - infra-mcp.vpsistema.com
-- mcp.vpsistema.com
+- mcp.vpsistema.com — `location /omie/` -> omie-mcp (127.0.0.1:8000); `location /` (catch-all) -> vpprd-mcp (127.0.0.1:3100), protegido por X-API-Key desde 2026-09-19
 - whatsapp-mcp.vpsistema.com
 - vpclick.vpsistema.com
 - requisicoes.vpsistema.com
-- configs legadas.
+- configs legadas: `visitas` e `vpsistema.com` (este com `default_server`) servem estático local de `/var/www/verticalparts/VerticalParts_Fix/...` — confirmado existente em 2026-09-19, não removido, só documentado (produção real desses domínios é shared hosting).
 
 DNS determina produção real em conjunto com inventory.
 
@@ -845,7 +874,7 @@ Conta Premium:
 
 Após o deploy do código do Infrastructure MCP:
 - service `verticalparts-infra-mcp.service` = active;
-- `tools/list` local retornou 49 tools;
+- `tools/list` local retornou 49 tools (sessão 1); **62 tools** após a expansão de 2026-09-19 sessão 2 (ver §21/RAG-009A2), validado end-to-end via `https://infra-mcp.vpsistema.com/mcp` real (401 sem chave, 200 com chave no `initialize`);
 - `hostinger_ssl_status` foi executado pelo protocolo MCP real e retornou sucesso.
 
 

@@ -56,6 +56,8 @@ class SSHRunner:
         p = PurePosixPath(path)
         if not p.is_absolute():
             raise PermissionError("Caminho precisa ser absoluto")
+        if ".." in p.parts:
+            raise PermissionError("Caminho não pode conter '..'")
         normalized = str(p)
         allowed = [str(x).replace("\\", "/") for x in settings.allowed_paths]
         if not any(normalized == a or normalized.startswith(a.rstrip("/") + "/") for a in allowed):

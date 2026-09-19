@@ -19,7 +19,8 @@ O servidor homologado deve:
 - rodar como `verticalparts-infra-mcp.service`;
 - expor Streamable HTTP em loopback;
 - ficar atrás de HTTPS + `X-API-Key`;
-- expor o catálogo atual de 49 tools;
+- expor o catálogo atual de **62 tools** (49 da homologação inicial + 13 da auditoria de segurança de 2026-09-19, sessão 2);
+- ficar atrás de firewall de host ativo (`ufw`, `default deny incoming` desde 2026-09-19);
 - carregar inventory/projects privados;
 - manter break-glass desligado por padrão.
 
@@ -93,6 +94,21 @@ Website listado na Hostinger não prova destino de produção.
 
 ### FR-019 — VPClick legado
 O registro Shared Hosting do VPClick deve ser tratado como legado vivo; não deletar/desativar sem análise explícita.
+
+### FR-020 — Firewall (adicionado 2026-09-19)
+Status sem confirmação; allow/delete rule com `CONFIRMO`. Achado real: host ficou meses com firewall totalmente inativo sem que isso fosse detectado — auditar não é opcional.
+
+### FR-021 — Docker network/volume (adicionado 2026-09-19)
+List sem confirmação; remove com `CONFIRMO_DESTRUTIVO` e recusa automática se houver container anexado/referenciando. `docker_compose_action(down)` é destrutivo, diferente das demais ações do mesmo tool.
+
+### FR-022 — Observabilidade de host (adicionado 2026-09-19)
+Portas em escuta, processos PM2, cron.d — leitura sem confirmação. PM2 nunca deve retornar variáveis de ambiente do processo (`pm2_env.env`).
+
+### FR-023 — Remoção segura de arquivo (adicionado 2026-09-19)
+`file_delete`: backup automático, caminho resolvido (`realpath -m`) e revalidado contra raízes permitidas antes de apagar, `CONFIRMO_DESTRUTIVO`.
+
+### FR-024 — Canonicalização de path (adicionado 2026-09-19, achado de review automatizado)
+Toda validação de caminho (`assert_allowed_path`) deve rejeitar segmentos `..`, não só checar prefixo textual. Checagem por prefixo sozinha é insuficiente porque não reflete como o shell remoto resolve o caminho.
 
 ## 4. Requisitos não funcionais
 

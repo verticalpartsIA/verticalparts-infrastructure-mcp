@@ -141,7 +141,7 @@ Homologação do Shared Hosting em 2026-09-19:
 - 5 websites `other` na conta Premium sem auto-deploy Git Hostinger;
 - PHP 8.3.33 está disponível para os cinco `other`, mas a classificação real deve considerar os arquivos/runtime;
 - `hostinger_ssl_status` foi validada pelo protocolo MCP real contra VPRequisições;
-- o catálogo carregado após restart contém 49 tools.
+- o catálogo carregado após restart contém 49 tools (sessão 1); **62 tools** após a auditoria de segurança da sessão 2 (firewall, docker network/volume, service enable/disable, pm2, cron, remoção segura de arquivo).
 
 ---
 
@@ -163,7 +163,27 @@ VPRequisições está no shared hosting.
 
 ## Tools
 
-O servidor homologado em 2026-09-19 expõe 49 tools, incluindo:
+O servidor homologado em 2026-09-19 expõe **62 tools** (49 da homologação inicial + 13 adicionadas na auditoria de segurança da mesma data), incluindo:
+
+Firewall (novo):
+- firewall_status / firewall_allow / firewall_delete_rule
+
+Docker (expandido):
+- docker_network_ls / docker_volume_ls / docker_network_rm / docker_volume_rm
+- docker_compose_action agora também suporta a ação `down`
+
+systemd (expandido):
+- service_enable / service_disable
+
+Observabilidade de host (novo):
+- infra_listening_ports (portas em escuta)
+- infra_pm2_list (processos PM2, sem variáveis de ambiente)
+- infra_cron_list (crontab root + /etc/cron.d)
+
+Arquivos (expandido):
+- file_delete (remoção com backup automático)
+
+Catálogo original (49 tools):
 
 Inventário:
 - infra_status
@@ -221,7 +241,9 @@ Confirmações:
 - CONFIRMO_DESTRUTIVO — destrutivo;
 - BREAK_GLASS — shell arbitrário com flag habilitada.
 
-Break-glass deve permanecer desligado normalmente.
+Break-glass deve permanecer desligado normalmente. Quando habilitado, roda como usuário `infra-mcp` com `sudo NOPASSWD: ALL` — é root irrestrito, não só Docker.
+
+Firewall (`ufw`) desde 2026-09-19: ativo, `default deny incoming`, liberado apenas 22/80/443. Tor e Cloudflare WARP foram desativados no mesmo dia por falta de uso comprovado (Tor tinha evidência real de abuso como proxy aberto). Ver `00_READ_FIRST_INFRASTRUCTURE_MCP.md` seção 4B para detalhes.
 
 ---
 
@@ -309,7 +331,7 @@ Em 2026-09-19 foram atualizados também os documentos complementares antigos (`C
 
 Entre as correções:
 - Shared Hosting Hostinger possui API útil para arquivos, Node.js, Git auto-deploy, SSL, bancos e cron;
-- o catálogo atual é de 49 tools;
+- o catálogo tinha 49 tools nessa primeira reconciliação (uma segunda auditoria no mesmo dia elevou para 62 — ver seção "Tools" acima e `00_READ_FIRST_INFRASTRUCTURE_MCP.md` seção 4B);
 - Docker do VPClick está corrigido/homologado via sudo e erro de socket futuro é regressão;
 - o registro Hostinger do VPClick é legado, não produção;
 - `website_type=other` não equivale automaticamente a PHP;

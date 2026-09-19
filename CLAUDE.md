@@ -43,11 +43,16 @@ Administrar e recuperar infraestrutura VerticalParts por tools semânticas, com 
 - transporte: Streamable HTTP;
 - bind interno: `127.0.0.1:8020`;
 - autenticação pública: `X-API-Key` no gateway;
-- catálogo MCP observado: **49 tools**;
+- catálogo MCP observado: **62 tools** (49 originais + 13 adicionadas em 2026-09-19, sessão 2 — firewall, docker network/volume, service enable/disable, pm2, cron, file_delete; ver `01_RAG-009`);
 - `hostinger_ssl_status` homologada end-to-end pelo protocolo MCP;
 - Docker usa `sudo docker` / `sudo docker compose` no plano SSH;
 - o antigo erro de socket Docker foi corrigido; se reaparecer, tratar como regressão;
-- break-glass permanece desabilitado por padrão.
+- break-glass permanece desabilitado por padrão;
+- quando habilitado, break-glass (`infra_exec_command`) roda como usuário `infra-mcp` com `sudo (ALL) NOPASSWD: ALL` — é root irrestrito na prática, não limitado a Docker;
+- firewall (`ufw`) está ativo desde 2026-09-19: `default deny incoming`, liberado apenas `22/80/443`. Antes disso estava totalmente inativo — não presuma que uma porta nova em `0.0.0.0` está protegida só porque o processo existe;
+- Tor e Cloudflare WARP foram desativados em 2026-09-19 (sem uso comprovado; Tor tinha evidência real de abuso como proxy aberto). Pacotes mantidos, `systemctl disable`;
+- `hermes-agent-god7` (agente de terminal do template Hostinger) foi removido em 2026-09-19 por decisão do operador — não confundir com "Hermes AI Agent" (NousResearch) documentado em `/root/vp-automations-hub/`;
+- `/opt/verticalparts-infrastructure-mcp` é `root:root` — as tools estruturadas `git_pull`/`file_write`/`env_set` (SSH sem sudo) não conseguem escrever nesse diretório; auto-atualização do próprio MCP exige o fluxo break-glass do `05_RUNBOOK` PARTE G. Isso é proteção intencional contra auto-modificação silenciosa, não bug.
 
 ## Shared Hosting Hostinger
 

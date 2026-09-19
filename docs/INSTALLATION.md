@@ -86,10 +86,11 @@ O token Hostinger deve permanecer somente no ambiente seguro do host.
 6. validar `infra_list_projects`;
 7. validar Docker somente se houver target Docker;
 8. instalar systemd;
-9. publicar HTTPS autenticado;
-10. executar `initialize` e `tools/list`;
-11. chamar uma tool real de leitura;
-12. testar mutação controlada somente com confirmação.
+9. **validar firewall do host** (`ufw status verbose` ou `firewall_status`) — não presumir que está ativo/correto só porque o host é novo; achado real de 2026-09-19 mostrou um host em produção há meses com firewall totalmente inativo. Estado esperado: `default deny incoming`, liberado só o estritamente necessário (tipicamente `22/80/443`);
+10. publicar HTTPS autenticado;
+11. executar `initialize` e `tools/list`;
+12. chamar uma tool real de leitura;
+13. testar mutação controlada somente com confirmação.
 
 ## Shared Hosting
 
