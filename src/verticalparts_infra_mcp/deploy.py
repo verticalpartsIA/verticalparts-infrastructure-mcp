@@ -50,7 +50,7 @@ async def deploy_project(name: str, branch: str | None = None) -> dict[str, Any]
         cmds.append(f"sudo systemctl is-active {service}")
     elif runtime.get("type") == "docker_compose":
         compose_file = runtime.get("compose_file", "docker-compose.yml")
-        cmds.append(f"docker compose -f {shlex.quote(compose_file)} up -d --build")
+        cmds.append(f"sudo docker compose -f {shlex.quote(compose_file)} up -d --build")
 
     result = await ssh.run(" && ".join(cmds), timeout=900)
     new_sha = (await ssh.run(f"cd {qp} && git rev-parse HEAD"))["stdout"].strip()
@@ -66,7 +66,7 @@ async def deploy_project(name: str, branch: str | None = None) -> dict[str, Any]
             rollback_cmds.append(f"sudo systemctl restart {shlex.quote(runtime['service'])}")
         elif runtime.get("type") == "docker_compose":
             compose_file = runtime.get("compose_file", "docker-compose.yml")
-            rollback_cmds.append(f"docker compose -f {shlex.quote(compose_file)} up -d --build")
+            rollback_cmds.append(f"sudo docker compose -f {shlex.quote(compose_file)} up -d --build")
         await ssh.run(" && ".join(rollback_cmds), timeout=900)
         raise RuntimeError(f"Health check falhou; rollback executado para {old_sha}")
 
