@@ -1,46 +1,95 @@
 # Segurança
 
+Versão: 2026-09-19
+
 ## 1. Princípio
 
-O objetivo é capacidade administrativa ampla sem entregar segredos desnecessários ao modelo.
+Fornecer capacidade administrativa sem entregar segredos desnecessários ao modelo e sem transformar uma LLM em shell irrestrito.
 
 ## 2. Credenciais
 
-- Hostinger: token em secret store/variável de ambiente ou OAuth quando a arquitetura permitir.
-- SSH: chave privada fora do repositório.
-- Produção: usuário `infra-mcp`, não senha root.
-- `known_hosts` obrigatório; não usar `StrictHostKeyChecking=no`.
+- Hostinger API token: somente secret store/`.env` do host;
+- Infrastructure `X-API-Key`: gateway e arquivo root-only autorizado;
+- WhatsApp `X-API-Key`: gateway e arquivo root-only autorizado;
+- SSH: private key fora do Git;
+- `known_hosts` obrigatório;
+- GitHub: chave dedicada quando aplicável;
+- nunca documentar valores de tokens, passwords ou private keys.
 
-## 3. Sudo recomendado
+## 3. Sudo — estado real e meta
 
-Dar ao usuário `infra-mcp` somente comandos necessários por sudoers. Exemplo de categorias:
+Estado atual de homologação:
+- `infra-mcp` possui sudo amplo `NOPASSWD: ALL`.
 
-- `systemctl` para serviços cadastrados;
-- `journalctl`;
-- `nginx -t` / reload;
-- apt update/upgrade quando aprovado;
-- Docker, se necessário.
+Isso foi usado para homologar o plano operacional e não é o alvo ideal de produção.
 
-Não liberar `NOPASSWD: ALL` em produção sem decisão explícita de risco.
+Meta:
+- reduzir para allowlist de `systemctl`, `journalctl`, Nginx, Docker, APT e comandos estritamente necessários.
 
-## 4. Segredos em .env
+Não adicionar `infra-mcp` ao grupo Docker como “correção padrão”. O desenho atual usa `sudo docker`, mantendo a elevação explícita.
 
-A LLM pode saber que `DATABASE_URL` existe, mas não precisa receber o valor. `env_set` aceita o novo valor como argumento da chamada, grava e devolve `[REDACTED]`.
+## 4. Segredos em env
 
-## 5. Autenticação externa do MCP
+No plano VPS:
+- `env_list_keys` lista nomes/configured sem valores;
+- `env_set` recebe valor novo, grava e retorna redigido.
 
-Streamable HTTP deve ficar atrás de HTTPS e autenticação. Opções preferidas:
+No plano Hostinger:
+- API de env Node.js retorna valores mascarados;
+- `hostinger_nodejs_env_keys` deve devolver somente nomes;
+- nunca copiar `********` para uma operação de escrita;
+- replacing env na Hostinger substitui o conjunto inteiro, então essa mutação exige tratamento especial se for implementada semanticamente.
 
-- OAuth/proxy de identidade;
-- access gateway;
-- header secreto validado no gateway.
+## 5. Leitura de arquivos Shared Hosting
 
-Não publique a porta interna diretamente.
+`hostinger_website_file_read`:
+- exige path relativo;
+- bloqueia traversal;
+- bloqueia nomes/sufixos de segredo conhecidos;
+- deve ser usada para configuração/texto operacional, não para extração de credenciais.
 
-## 6. Auditoria
+A própria API Hostinger também pode recusar arquivos grandes, binários, symlinks e conteúdo sensível.
 
-Auditar toda mutação. Evitar registrar valores de tokens, senhas e chaves.
+## 6. Autenticação externa do MCP
 
-## 7. Shell arbitrário
+Endpoint público:
+- HTTPS;
+- Nginx/gateway;
+- header `X-API-Key`;
+- upstream em loopback.
 
-Desabilitado por padrão. A presença dessa tool não deve virar atalho para ignorar wrappers semânticos.
+Porta 8020 não deve ser publicada diretamente.
+
+Um 401 sem chave é comportamento esperado do gateway protegido e não significa serviço morto.
+
+## 7. Auditoria
+
+Toda mutação deve ser auditada sem:
+- tokens;
+- senhas;
+- private keys;
+- valores env;
+- conteúdo secreto.
+
+## 8. Shared Hosting e produção
+
+Cadastro Hostinger não define produção.
+
+Exemplo crítico:
+- VPClick ainda existe na Hostinger com Git ativo;
+- produção real está em Docker na VPS.
+
+Nunca deletar recurso legado sem confirmar DNS, runtime, dependências e rollback.
+
+## 9. Shell arbitrário
+
+`infra_exec_command`:
+- desabilitado por padrão;
+- exige `INFRA_ALLOW_BREAK_GLASS=true`;
+- exige `BREAK_GLASS`;
+- exige razão;
+- só usar quando nenhuma tool semântica adequada atender.
+
+## 10. Arquitetura resiliente
+
+O Infrastructure MCP ainda está na VPS que administra. Isso aumenta blast radius. O desenho futuro deve mover o control plane para outro host.
