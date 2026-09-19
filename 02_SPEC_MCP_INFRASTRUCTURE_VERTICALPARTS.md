@@ -175,12 +175,33 @@ Mutações exigem CONFIRMO.
 
 ---
 
-### FR-007 — Hostinger Websites
+### FR-007 — Hostinger Websites e Shared Hosting
 
-Deve suportar ao menos listagem dos sites acessíveis pela conta.
+Deve suportar semanticamente, em leitura:
+- listagem de sites e planos;
+- arquivos do document root;
+- leitura segura de arquivo texto;
+- status de auto-deploy Git;
+- status SSL;
+- bancos sem exposição de senha;
+- cron jobs;
+- settings Node.js;
+- histórico de builds;
+- build logs;
+- runtime logs;
+- nomes de variáveis de ambiente sem valores;
+- vulnerabilidades Node.js.
+
+Deve suportar restart do processo Node.js como operação CRITICAL, exigindo `CONFIRMO`.
 
 A LLM deve entender que:
-site listado como enabled != prova de que DNS de produção aponta para ele.
+- site listado como enabled != prova de que DNS de produção aponta para ele;
+- `website_type=other` não prova que a aplicação é PHP;
+- integração Git Hostinger ativa não prova que esse ambiente seja a produção canônica;
+- VPClick é o caso conhecido em que o registro Shared Hosting é legado e a produção está na VPS/Docker.
+
+Leitura de arquivo deve bloquear caminhos inseguros e arquivos com alta probabilidade de conter segredo.
+A listagem de env Node.js deve retornar apenas nomes de chaves; valores mascarados da API não devem ser propagados como valores reais.
 
 ---
 
