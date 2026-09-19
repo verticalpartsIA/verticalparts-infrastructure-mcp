@@ -1,7 +1,7 @@
 # Catálogo de Tools
 
 Versão observada: 2026-09-19
-Total homologado em `tools/list`: **49 tools**
+Total homologado em `tools/list`: **62 tools** (49 na homologação inicial + 13 na auditoria de segurança da mesma data, sessão 2 — ver seção "Firewall, Docker network/volume, systemd e observabilidade" abaixo)
 
 ## Inventário
 
@@ -97,6 +97,29 @@ Total homologado em `tools/list`: **49 tools**
 | `deploy_project` | crítico | deploy declarativo + health/rollback; recusa deploy externo |
 | `infra_exec_command` | break-glass | shell arbitrário, desabilitado por padrão |
 
+## Firewall, Docker network/volume, systemd e observabilidade (adicionadas 2026-09-19, sessão 2)
+
+Origem: auditoria de segurança que encontrou firewall inativo, redes/volumes Docker órfãos, e lacunas de observabilidade (portas em escuta, PM2, cron.d) durante a investigação. PR: `verticalpartsIA/verticalparts-infrastructure-mcp#1`.
+
+| Tool | Risco | Função |
+|---|---|---|
+| `firewall_status` | leitura | `ufw status verbose` |
+| `firewall_allow` | crítico | libera porta (`ufw allow PORTA/proto`) |
+| `firewall_delete_rule` | crítico | remove regra de liberação existente |
+| `service_enable` | crítico | habilita serviço systemd no boot (não inicia agora) |
+| `service_disable` | crítico | desabilita serviço systemd no boot (não para agora) |
+| `docker_network_ls` | leitura | lista redes Docker |
+| `docker_volume_ls` | leitura | lista volumes Docker |
+| `docker_network_rm` | destrutivo | remove rede; recusa automaticamente se houver container anexado |
+| `docker_volume_rm` | destrutivo | remove volume; recusa automaticamente se algum container referenciar |
+| `docker_compose_action` (ação `down`) | destrutivo | extensão da tool existente — `down` é destrutivo, diferente de pull/build/up/restart (críticos) |
+| `infra_listening_ports` | leitura | `ss -tlnp` — portas TCP em escuta e processo responsável |
+| `infra_pm2_list` | leitura | processos PM2 sob root; **nunca** retorna `pm2_env.env` (variáveis de ambiente/segredos do processo) |
+| `infra_cron_list` | leitura | crontab do root + conteúdo (schedule/comando) de cada arquivo em `/etc/cron.d` |
+| `file_delete` | destrutivo | remove arquivo/diretório com backup `.tar.gz` automático; resolve o caminho real via `realpath -m` e revalida contra as raízes permitidas antes de apagar (proteção contra `..` e symlink) |
+
+Achado de segurança corrigido na mesma leva (não é uma tool, é um fix estrutural): `ssh.assert_allowed_path` (usado por `file_read`, `file_write`, `file_delete`, `git_status/log/fetch/pull`, `docker_compose_action`) agora rejeita qualquer caminho contendo `..` — antes, um caminho como `/opt/../etc/hostname` passava na checagem por começar com `/opt/`, mesmo resolvendo para fora da raiz permitida no shell remoto.
+
 ## Regras do catálogo
 
 - ferramenta listada não significa que toda combinação de argumentos foi homologada;
@@ -111,9 +134,10 @@ Total homologado em `tools/list`: **49 tools**
 Prioridades úteis:
 - DNS semântico;
 - backups/snapshots;
-- firewall;
+- ~~firewall~~ (implementado em 2026-09-19: `firewall_status/allow/delete_rule`);
 - health orchestration;
 - drift detection;
 - mutations Shared Hosting específicas com guardrails;
-- redução de sudo;
-- control plane externo à VPS.
+- redução de sudo (`infra-mcp` ainda tem `NOPASSWD: ALL`, ver `docs/SECURITY.md`);
+- control plane externo à VPS;
+- rotação coordenada de credenciais do `evolution-api` (VPS + `.env` do Node.js do `posvenda360.vpsistema.com` no shared hosting) — decisão em aberto desde 2026-09-19, adiada pelo operador.

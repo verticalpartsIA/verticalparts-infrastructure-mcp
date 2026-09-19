@@ -336,6 +336,23 @@ Total observado em homologação em 2026-09-19 (sessão 1): 49 tools.
 
 ---
 
+## RAG-009A — Shared Hosting Hostinger homologado em 2026-09-19
+
+Estado vivo observado:
+
+- 14 websites acessíveis pela API Hosting;
+- dois planos/ordens: um Cloud e um Premium;
+- 9 sites classificados pela Hostinger como `nodejs` na conta Cloud, todos com auto-deploy Git ativo;
+- 5 sites classificados como `other` na conta Premium, todos com PHP 8.3.33 disponível, mas sem auto-deploy Git Hostinger;
+- classificação `other` não prova aplicação PHP: observar arquivos reais e runtime antes de concluir;
+- `vprequisicoes.vpsistema.com` usa Node.js 22, build Hostinger/Passenger e integração Git com `verticalpartsIA/003_requisicoes` branch `main`;
+- SSL de `vprequisicoes.vpsistema.com` foi testado pela própria tool MCP `hostinger_ssl_status` e retornou ativo com redirect HTTPS;
+- `vpclick.vpsistema.com` continua cadastrado como Node.js no Shared Hosting e com auto-deploy Git, mas essa superfície é legado. Produção canônica permanece Docker na VPS.
+
+Regra: preferir as tools semânticas acima ao `hostinger_api_call`. O fallback genérico fica para endpoints oficiais ainda não encapsulados.
+
+---
+
 ## RAG-009A2 — Tools adicionadas em 2026-09-19 (sessão 2, auditoria de segurança)
 
 Firewall (ufw):
@@ -370,7 +387,7 @@ Total observado em homologação em 2026-09-19 (sessão 2): **62 tools**. PR de 
 
 Com break-glass habilitado (confirmação por comando, auditado), uma varredura do host encontrou:
 
-- firewall (`ufw`) totalmente inativo — corrigido, ver RAG-002B abaixo;
+- firewall (`ufw`) totalmente inativo, corrigido: ativo desde 2026-09-19, `default deny incoming`, liberado apenas `22/tcp`, `80/tcp`, `443/tcp` (+ IPv6). Use `firewall_status` para conferir o estado real antes de assumir que uma porta está acessível ou bloqueada;
 - Tor com `SocksPort 0.0.0.0:9050` (não é o padrão) e evidência real de abuso como proxy aberto — desativado;
 - Cloudflare WARP instalado mas nunca configurado — desativado;
 - `hermes-agent-god7` (terminal remoto do template Hostinger, não confundir com "Hermes AI Agent"/NousResearch) sem uso real relevante e sem rota externa funcional (Traefik sem porta mapeada) — removido com backup;
@@ -379,24 +396,6 @@ Com break-glass habilitado (confirmação por comando, auditado), uma varredura 
 - `/opt/verticalparts-infrastructure-mcp` é `root:root`, o que bloqueia as tools estruturadas de escrita (`git_pull`, `file_write`, `env_set`) nesse diretório especificamente — usar break-glass para auto-atualização (ver `05_RUNBOOK` PARTE G).
 
 A pilha de automação da VPS é maior do que os projetos historicamente registrados (`omie-mcp`, `whatsapp-mcp`, `vpclick`): inclui `evolution-api`, `n8n`, `vp-infra`, `traefik`, `stt-service`, `telegram-claude`, `vpprd-mcp`, crons de negócio (`bordero`, `vpclick-cobranca`, `sac-backfill-diario`, `cron-handoffs`) e checkouts diversos. O roster completo e atualizado vive em `config/projects.yaml` do runtime — não duplicado aqui de propósito.
-
-Firewall (ufw), estado desde 2026-09-19: ativo, `default deny incoming`, liberado apenas `22/tcp`, `80/tcp`, `443/tcp` (+ IPv6). Use `firewall_status` para conferir o estado real antes de assumir que uma porta está acessível ou bloqueada.
-
-## RAG-009A — Shared Hosting Hostinger homologado em 2026-09-19
-
-Estado vivo observado:
-
-- 14 websites acessíveis pela API Hosting;
-- dois planos/ordens: um Cloud e um Premium;
-- 9 sites classificados pela Hostinger como `nodejs` na conta Cloud, todos com auto-deploy Git ativo;
-- 5 sites classificados como `other` na conta Premium, todos com PHP 8.3.33 disponível, mas sem auto-deploy Git Hostinger;
-- classificação `other` não prova aplicação PHP: observar arquivos reais e runtime antes de concluir;
-- `vprequisicoes.vpsistema.com` usa Node.js 22, build Hostinger/Passenger e integração Git com `verticalpartsIA/003_requisicoes` branch `main`;
-- SSL de `vprequisicoes.vpsistema.com` foi testado pela própria tool MCP `hostinger_ssl_status` e retornou ativo com redirect HTTPS;
-- `vpclick.vpsistema.com` continua cadastrado como Node.js no Shared Hosting e com auto-deploy Git, mas essa superfície é legado. Produção canônica permanece Docker na VPS.
-
-Regra: preferir as tools semânticas acima ao `hostinger_api_call`. O fallback genérico fica para endpoints oficiais ainda não encapsulados.
-
 
 ---
 

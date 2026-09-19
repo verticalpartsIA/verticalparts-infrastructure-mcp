@@ -2,7 +2,7 @@
 
 > Este arquivo existe para compatibilidade com consumidores antigos que procuram conhecimento em `rag/`.
 > A fonte canônica é `/01_RAG_MCP_INFRASTRUCTURE_VERTICALPARTS.md`.
-> Revisado e sincronizado em 2026-09-19 após auditoria e homologação.
+> Revisado e sincronizado em 2026-09-19 após auditoria e homologação (sessão 1) e novamente após a auditoria de segurança da mesma data (sessão 2: firewall, Tor/WARP, hermes-agent-god7, vpprd-mcp, 13 tools novas).
 
 # 01 — RAG CANÔNICO — MCP Infrastructure VerticalParts
 
@@ -153,6 +153,11 @@ Infrastructure remoto:
 - serviço: verticalparts-infra-mcp.service
 - autenticação pública: X-API-Key
 - arquivo autorizado de recuperação da chave: /root/infra-mcp-auth-token.
+
+vpprd-mcp (não é um dos 3 MCPs canônicos do Claude, é interno da VPS):
+- servidor MCP "vpprd-browser", systemd `vpprd-mcp.service`, porta 3100;
+- exposto via `mcp.vpsistema.com` no `location /` (fora de `/omie/`), protegido por `X-API-Key` desde 2026-09-19 — arquivo `/root/vpprd-mcp-auth-token`;
+- também tem autenticação própria via Bearer token na aplicação (camada adicional, independente do gateway).
 
 Omie local:
 - nome Claude Code: omie-verticalparts
@@ -333,7 +338,7 @@ Deploy:
 Break-glass:
 - infra_exec_command
 
-Total observado em homologação em 2026-09-19: 49 tools.
+Total observado em homologação em 2026-09-19 (sessão 1): 49 tools.
 
 ---
 
@@ -352,6 +357,51 @@ Estado vivo observado:
 
 Regra: preferir as tools semânticas acima ao `hostinger_api_call`. O fallback genérico fica para endpoints oficiais ainda não encapsulados.
 
+---
+
+## RAG-009A2 — Tools adicionadas em 2026-09-19 (sessão 2, auditoria de segurança)
+
+Firewall (ufw):
+- firewall_status (read)
+- firewall_allow (CRITICAL)
+- firewall_delete_rule (CRITICAL)
+
+systemd:
+- service_enable (CRITICAL)
+- service_disable (CRITICAL)
+
+Docker:
+- docker_network_ls (read)
+- docker_volume_ls (read)
+- docker_network_rm (DESTRUCTIVE — recusa se houver container anexado)
+- docker_volume_rm (DESTRUCTIVE — recusa se algum container referenciar o volume)
+- docker_compose_action: nova ação `down` (DESTRUCTIVE, distinta de pull/build/up/restart que são CRITICAL)
+
+Observabilidade de host:
+- infra_listening_ports (read — `ss -tlnp`)
+- infra_pm2_list (read — processos PM2 sob root; nunca retorna `pm2_env.env`, que carregaria segredos)
+- infra_cron_list (read — crontab root + conteúdo de `/etc/cron.d`)
+
+Arquivos:
+- file_delete (DESTRUCTIVE — backup `.tar.gz` automático antes; resolve o caminho real via `realpath -m` e revalida contra as raízes permitidas antes de apagar, para não ser enganado por `..` ou symlink)
+
+Total observado em homologação em 2026-09-19 (sessão 2): **62 tools**. PR de origem: `verticalpartsIA/verticalparts-infrastructure-mcp#1`.
+
+---
+
+## RAG-009B — Segurança do host: achados e correções de 2026-09-19 (sessão 2)
+
+Com break-glass habilitado (confirmação por comando, auditado), uma varredura do host encontrou:
+
+- firewall (`ufw`) totalmente inativo, corrigido: ativo desde 2026-09-19, `default deny incoming`, liberado apenas `22/tcp`, `80/tcp`, `443/tcp` (+ IPv6). Use `firewall_status` para conferir o estado real antes de assumir que uma porta está acessível ou bloqueada;
+- Tor com `SocksPort 0.0.0.0:9050` (não é o padrão) e evidência real de abuso como proxy aberto — desativado;
+- Cloudflare WARP instalado mas nunca configurado — desativado;
+- `hermes-agent-god7` (terminal remoto do template Hostinger, não confundir com "Hermes AI Agent"/NousResearch) sem uso real relevante e sem rota externa funcional (Traefik sem porta mapeada) — removido com backup;
+- `mcp.vpsistema.com` expunha `vpprd-mcp` (porta 3100) via `location /` sem `X-API-Key` — corrigido, mesmo padrão dos outros MCPs;
+- usuário `infra-mcp` tem `sudo (ALL) NOPASSWD: ALL` — o break-glass é root irrestrito, não só Docker;
+- `/opt/verticalparts-infrastructure-mcp` é `root:root`, o que bloqueia as tools estruturadas de escrita (`git_pull`, `file_write`, `env_set`) nesse diretório especificamente — usar break-glass para auto-atualização (ver `05_RUNBOOK` PARTE G).
+
+A pilha de automação da VPS é maior do que os projetos historicamente registrados (`omie-mcp`, `whatsapp-mcp`, `vpclick`): inclui `evolution-api`, `n8n`, `vp-infra`, `traefik`, `stt-service`, `telegram-claude`, `vpprd-mcp`, crons de negócio (`bordero`, `vpclick-cobranca`, `sac-backfill-diario`, `cron-handoffs`) e checkouts diversos. O roster completo e atualizado vive em `config/projects.yaml` do runtime — não duplicado aqui de propósito.
 
 ---
 
@@ -793,4 +843,3 @@ O incidente só termina quando:
 - nenhum segredo exposto;
 - rollback concluído ou desnecessário;
 - estado final comunicado.
-
