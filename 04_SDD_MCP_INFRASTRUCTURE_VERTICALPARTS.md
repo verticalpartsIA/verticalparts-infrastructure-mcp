@@ -92,13 +92,21 @@ Responsabilidades:
 - autenticação Bearer;
 - request genérico;
 - list VPS;
-- list websites;
+- list websites e hosting orders;
 - get VPS;
 - metrics;
-- start/stop/restart.
+- start/stop/restart da VPS;
+- listagem e leitura segura de arquivos do Shared Hosting;
+- Git auto-deploy status;
+- SSL status;
+- bancos e cron jobs;
+- Node.js settings, builds, build logs e runtime logs;
+- listagem de nomes de env Node.js sem exposição de valores;
+- vulnerabilidades Node.js;
+- restart controlado do processo Node.js.
 
 Design:
-wrapper semântico para operações frequentes + fallback oficial.
+wrapper semântico para operações frequentes + fallback oficial. O fallback genérico não deve substituir uma tool semântica existente.
 
 ---
 
@@ -817,6 +825,29 @@ destino efetivo do DNS + runtime + health.
 O inventory representa a decisão operacional reconciliada.
 
 ---
+
+### 24.1 Homologação Shared Hosting — 2026-09-19
+
+A API Hosting foi validada nos dois planos atualmente acessíveis.
+
+Conta Cloud:
+- 9 websites Node.js;
+- todos com integração Git/auto-deploy Hostinger ativa;
+- builds e commits podem ser observados semanticamente;
+- VPRequisições foi validado com Node.js 22 e SSL ativo;
+- VPClick aparece nessa superfície, mas deve ser tratado como registro legado porque produção canônica é Docker na VPS.
+
+Conta Premium:
+- 5 websites `other`;
+- PHP 8.3.33 disponível para os cinco;
+- nenhum com auto-deploy Git Hostinger;
+- inspeção de arquivos mostrou mistura de estático e PHP/híbrido, então `other` não deve ser convertido automaticamente em `php`.
+
+Após o deploy do código do Infrastructure MCP:
+- service `verticalparts-infra-mcp.service` = active;
+- `tools/list` local retornou 49 tools;
+- `hostinger_ssl_status` foi executado pelo protocolo MCP real e retornou sucesso.
+
 
 ## 25. Failure modes
 
