@@ -211,6 +211,19 @@ https://www.hostinger.com/support/11079316-hostinger-api-mcp-server/
 Hostinger remote MCP:
 https://mcp.hostinger.com
 
+## 12A. Reconciliação documental pós-auditoria
+
+Em 2026-09-19, a documentação antiga do repositório foi revisada contra o estado vivo descoberto.
+
+Foram reconciliados:
+- `CLAUDE.md`;
+- todos os arquivos em `docs/`;
+- o RAG legado em `rag/`, agora sincronizado com o RAG canônico;
+- o seed de fine-tuning com casos corrigidos;
+- exemplos de configuração que continham associação não verificada.
+
+Regra: documentos antigos/complementares não podem reintroduzir as conclusões incorretas da primeira auditoria, como ausência de recursos de Shared Hosting na API, Docker “intermitente” ou associação de repositório sem evidência.
+
 ## 13. Regra final
 
 Este repositório não é apenas código de um MCP. Ele é o manual de continuidade operacional da infraestrutura VerticalParts.
