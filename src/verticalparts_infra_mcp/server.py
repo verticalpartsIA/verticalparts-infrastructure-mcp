@@ -206,7 +206,7 @@ async def docker_logs(container: str, lines: int = 200) -> Any:
     """Mostra logs recentes de um container."""
     c = _container_name(container)
     n = max(1, min(int(lines), 3000))
-    return await ssh.run(f"docker logs --tail {n} {shlex.quote(c)} 2>&1", check=False)
+    return await ssh.run(f"sudo docker logs --tail {n} {shlex.quote(c)} 2>&1", check=False)
 
 
 @mcp.tool()
@@ -214,7 +214,7 @@ async def docker_restart(container: str, confirmation: str | None = None) -> Any
     """Reinicia um container Docker. Exige confirmation='CONFIRMO'."""
     require_confirmation(Risk.CRITICAL, confirmation)
     c = _container_name(container)
-    result = await ssh.run(f"docker restart {shlex.quote(c)}")
+    result = await ssh.run(f"sudo docker restart {shlex.quote(c)}")
     write_audit("docker_restart", {"container": c, "ok": True})
     return result
 
@@ -237,12 +237,12 @@ async def docker_compose_action(
     qdir = shlex.quote(project_dir)
     qfile = shlex.quote(compose_file)
     cmd = {
-        "pull": f"cd {qdir} && docker compose -f {qfile} pull",
-        "build": f"cd {qdir} && docker compose -f {qfile} build",
-        "up": f"cd {qdir} && docker compose -f {qfile} up -d",
-        "restart": f"cd {qdir} && docker compose -f {qfile} restart",
-        "ps": f"cd {qdir} && docker compose -f {qfile} ps",
-        "logs": f"cd {qdir} && docker compose -f {qfile} logs --tail 300",
+        "pull": f"cd {qdir} && sudo docker compose -f {qfile} pull",
+        "build": f"cd {qdir} && sudo docker compose -f {qfile} build",
+        "up": f"cd {qdir} && sudo docker compose -f {qfile} up -d",
+        "restart": f"cd {qdir} && sudo docker compose -f {qfile} restart",
+        "ps": f"cd {qdir} && sudo docker compose -f {qfile} ps",
+        "logs": f"cd {qdir} && sudo docker compose -f {qfile} logs --tail 300",
     }[action]
     result = await ssh.run(cmd, timeout=900, check=False)
     write_audit("docker_compose_action", {"project_dir": project_dir, "action": action, "ok": result["exit_status"] == 0})
