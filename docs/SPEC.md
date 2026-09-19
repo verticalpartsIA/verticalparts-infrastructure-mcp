@@ -1,85 +1,116 @@
 # SPEC — VerticalParts Infrastructure MCP
 
+Versão: 2026-09-19
+Status: resumo complementar; a SPEC canônica é `02_SPEC_MCP_INFRASTRUCTURE_VERTICALPARTS.md`
+
 ## 1. Objetivo
 
-Permitir que uma LLM administre infraestrutura da VerticalParts por intenção de negócio, com ferramentas semânticas, confirmação proporcional ao risco, auditoria e capacidade de recuperação.
+Permitir que uma LLM administre infraestrutura VerticalParts por intenção, usando tools semânticas, confirmação proporcional ao risco, auditoria, health e rollback.
 
-O escopo cobre dois planos:
+O escopo cobre três planos:
 
-- Hostinger Control Plane: ciclo de vida da VPS e recursos expostos pela API Hostinger.
-- VPS Operations Plane: sistema operacional, serviços, containers, Git, deploy, variáveis, arquivos, proxy e diagnóstico.
+- Hostinger VPS Control Plane;
+- Hostinger Shared Hosting Control Plane;
+- VPS Linux Operations Plane.
 
-## 2. Requisitos funcionais
+## 2. Estado mínimo esperado
 
-### FR-INFRA-001 — Descoberta de alvo
-Antes de alterar qualquer recurso, identificar host, projeto, serviço/container e ambiente corretos. Nome textual ambíguo não autoriza mutação.
+O servidor homologado deve:
+- rodar como `verticalparts-infra-mcp.service`;
+- expor Streamable HTTP em loopback;
+- ficar atrás de HTTPS + `X-API-Key`;
+- expor o catálogo atual de 49 tools;
+- carregar inventory/projects privados;
+- manter break-glass desligado por padrão.
 
-### FR-INFRA-002 — Leitura antes de escrita
-Quando uma mutação depender do estado atual, consultar o estado antes. Ex.: status do serviço antes de restart, working tree antes de pull, `nginx -t` antes de reload.
+## 3. Requisitos funcionais
 
-### FR-INFRA-003 — Ferramentas semânticas
-Preferir tools específicas. Shell genérico é break-glass e não caminho normal.
+### FR-001 — Descoberta
+Identificar ambiente real antes de qualquer mutação.
 
-### FR-INFRA-004 — Control plane externo
-Start/stop/restart da VPS deve ser possível pela API Hostinger. Isso permite recuperação mesmo quando SSH não responde, desde que o MCP esteja hospedado fora da VPS alvo.
+### FR-002 — Inventário
+Usar `infra_inventory` para mapa operacional e reconciliar com DNS/runtime/health.
 
-### FR-INFRA-005 — SSH seguro
-Usar chave SSH, verificação de host key e usuário dedicado em produção. Não guardar senha root no MCP.
+### FR-003 — VPS Hostinger
+List/status/metrics/start/stop/restart, com confirmação para mutações.
 
-### FR-INFRA-006 — Serviços
-Permitir status, logs, start, stop e restart de systemd. Mutações exigem confirmação.
+### FR-004 — Shared Hosting Hostinger
+Suportar semanticamente:
+- orders/websites;
+- file list/read seguro;
+- Git auto-deploy status;
+- SSL status;
+- databases;
+- cron jobs;
+- Node.js settings/builds/build logs/runtime logs/env keys/vulnerabilities;
+- Node.js restart com `CONFIRMO`.
 
-### FR-INFRA-007 — Docker
-Permitir listar, logs, restart de container e ações Compose. Remoções/`down` destrutivo devem exigir confirmação destrutiva em versões futuras.
+### FR-005 — Fallback Hostinger
+`hostinger_api_call` somente para endpoint oficial ainda sem wrapper. Tool semântica tem precedência.
 
-### FR-INFRA-008 — Git
-Permitir status, log, fetch e pull. Pull deve usar `--ff-only` e recusar working tree suja por padrão.
+### FR-006 — SSH seguro
+Chave, known_hosts, usuário dedicado e path allowlist.
 
-### FR-INFRA-009 — Variáveis
-Listar nomes/chaves sem revelar valores. Alterações criam backup e não devolvem o segredo ao modelo.
+### FR-007 — systemd
+Status/logs/start/stop/restart; mutações exigem confirmação.
 
-### FR-INFRA-010 — Arquivos
-Leitura/escrita limitadas a raízes permitidas. Escrita cria backup. `.env` deve usar ferramentas próprias.
+### FR-008 — Docker
+List/logs/restart/Compose. Docker não é default. VPClick é o caso de produção Docker conhecido.
 
-### FR-INFRA-011 — Nginx
-Testar configuração antes de reload. Nunca recarregar se `nginx -t` falhar.
+### FR-009 — Deploy externo
+Projeto com `deploy.mode=external` deve ser recusado por `deploy_project`. VPClick publica via GitHub Actions.
 
-### FR-INFRA-012 — Deploy
-Deploy deve executar preflight, registrar commit anterior, atualizar código, buildar, reiniciar runtime, fazer health check e fazer rollback se configurado e necessário.
+### FR-010 — Git
+Status/log/fetch/pull ff-only; working tree suja bloqueia pull/deploy.
 
-### FR-INFRA-013 — Atualizações do SO
-Permitir consulta de updates. Instalação exige confirmação. Reboot é operação separada.
+### FR-011 — Env e arquivos
+Nunca retornar valores secretos. Escritas criam backup quando aplicável.
 
-### FR-INFRA-014 — Auditoria
-Toda mutação deve registrar timestamp, tool, alvo, ação, resultado e erro, sem segredos.
+### FR-012 — Nginx
+`nginx_test` antes de reload.
 
-### FR-INFRA-015 — Confirmação por risco
-Leitura: sem confirmação.
-Operacional reversível: pode executar sem confirmação quando explicitamente solicitado.
-Crítico: `CONFIRMO`.
-Destrutivo: `CONFIRMO_DESTRUTIVO`.
-Break-glass: `BREAK_GLASS` e flag de servidor habilitada.
+### FR-013 — APT
+Check sem confirmação; upgrade com `CONFIRMO`; reboot separado.
 
-### FR-INFRA-016 — Fallback Hostinger
-A API Hostinger evolui. Deve existir fallback genérico para endpoint ainda não encapsulado, com classificação automática de risco e confirmação.
+### FR-014 — Auditoria
+Toda mutação rastreável sem segredo.
 
-### FR-INFRA-017 — Fallback Linux
-Deve existir execução arbitrária controlada para incidentes excepcionais. Ela deve estar desabilitada por padrão.
+### FR-015 — Confirmação
+- READ: sem confirmação;
+- CRITICAL: `CONFIRMO`;
+- DESTRUCTIVE: `CONFIRMO_DESTRUTIVO`;
+- BREAK_GLASS: flag + razão + `BREAK_GLASS`.
 
-### FR-INFRA-018 — Diagnóstico antes de reiniciar
-A LLM deve distinguir sessão do cliente, processo local, serviço remoto, proxy, rede, autenticação e aplicação antes de reiniciar infraestrutura.
+### FR-016 — Timeout
+Verificar estado antes de retry.
 
-### FR-INFRA-019 — Rollback
-Mudanças com rollback viável devem preservar referência anterior: backup de arquivo, commit anterior, versão anterior ou snapshot.
+### FR-017 — Não inventar
+Não inventar IDs, paths, endpoints, branches, serviços, bancos, credenciais ou associações.
 
-### FR-INFRA-020 — Não inventar
-Nunca inventar ID da VPS, caminho, serviço, container, branch, variável, porta, health URL, credencial ou resultado.
+### FR-018 — Classificação Hostinger
+`website_type=other` não deve ser convertido automaticamente em “PHP”.
+Website listado na Hostinger não prova destino de produção.
 
-## 3. Requisitos não funcionais
+### FR-019 — VPClick legado
+O registro Shared Hosting do VPClick deve ser tratado como legado vivo; não deletar/desativar sem análise explícita.
 
-- Segurança: mínimo privilégio, segredos fora do Git, autenticação externa.
-- Auditabilidade: toda escrita rastreável.
-- Resiliência: control plane independente da VPS alvo.
-- Reversibilidade: backup/rollback sempre que viável.
-- Observabilidade: logs e health checks antes/depois.
-- Determinismo: mesmas condições devem levar à mesma política de risco.
+## 4. Requisitos não funcionais
+
+- segurança;
+- auditabilidade;
+- reversibilidade;
+- observabilidade;
+- compatibilidade MCP;
+- documentação reconciliada;
+- resiliência futura com control plane externo.
+
+## 5. Critério de aceite
+
+Após upgrade:
+1. service active;
+2. initialize;
+3. tools/list;
+4. `infra_inventory`;
+5. uma tool de leitura real;
+6. auth pública;
+7. nenhum segredo exposto.
