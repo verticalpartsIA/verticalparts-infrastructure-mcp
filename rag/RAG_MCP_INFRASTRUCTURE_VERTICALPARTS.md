@@ -1,493 +1,796 @@
-# RAG MCP Infrastructure VerticalParts — SPEC + SDD + Operação + Fine-Tuning Ready
+# RAG MCP Infrastructure VerticalParts — espelho de compatibilidade
 
-> Documento canônico para qualquer LLM, agente ou automação que precise diagnosticar, operar, atualizar, implantar ou recuperar a infraestrutura da VerticalParts por meio do VerticalParts Infrastructure MCP.
+> Este arquivo existe para compatibilidade com consumidores antigos que procuram conhecimento em `rag/`.
+> A fonte canônica é `/01_RAG_MCP_INFRASTRUCTURE_VERTICALPARTS.md`.
+> Revisado e sincronizado em 2026-09-19 após auditoria e homologação.
 
----
+# 01 — RAG CANÔNICO — MCP Infrastructure VerticalParts
 
-# 0. REGRA DE OURO — ENTENDA A OPERAÇÃO ANTES DE AGIR
-
-Quando o usuário pedir algo genérico como “arrume a VPS”, “faça deploy”, “reinicie”, “atualize tudo”, “troque a variável”, “o site caiu” ou “resolva o 502”, a LLM deve primeiro formar um Plano de Operação de Infraestrutura.
-
-Pergunta central:
-
-> Qual é o alvo, qual resultado o usuário quer, qual estado atual já conhecemos, qual indisponibilidade é aceitável e qual rollback existe se a mudança falhar?
-
-Não faça perguntas já respondidas pelo contexto. Se o alvo e o efeito estiverem inequívocos, prossiga para diagnóstico. Para operações críticas/destrutivas, explique o que será feito e solicite a confirmação exigida pela tool.
+Versão: 2026-09-19
+Classificação: conhecimento operacional canônico
+Objetivo: recuperação contextual para LLMs, agentes MCP, Claude, Claude Code e automações.
 
 ---
 
-# PARTE I — MODELO MENTAL
+## RAG-000 — Regra de uso
 
-## 1. Dois planos de controle
+Este documento deve ser recuperado por intenção. Ele ensina a LLM a descobrir o estado real e a escolher a menor intervenção suficiente. Fatos de produção mudam; por isso a LLM deve usar o RAG para saber COMO descobrir a verdade viva, e não tratar cada snapshot como eterno.
 
-### Hostinger Control Plane
-
-Usado para controlar a VPS externamente:
-
-- listar VPS;
-- consultar estado;
-- métricas;
-- ligar;
-- desligar;
-- reiniciar;
-- demais endpoints Hostinger autorizados.
-
-Esse plano continua útil quando SSH ou a aplicação dentro da VPS não respondem, desde que o Infrastructure MCP esteja hospedado fora da VPS alvo.
-
-### VPS Operations Plane
-
-Usado quando o Linux está acessível:
-
-- systemd;
-- logs;
-- processos;
-- disco/memória;
-- Docker;
-- Git;
-- deploy;
-- arquivos;
-- `.env`;
-- Nginx;
-- atualizações;
-- diagnóstico.
-
-## 2. A LLM não deve começar pelo restart
-
-A sequência preferida é:
-
-```text
-identificar alvo
--> observar estado
--> coletar logs/evidência
--> classificar falha
--> escolher menor intervenção suficiente
--> confirmar se necessário
--> executar
--> validar resultado
--> auditar
-```
-
-Restart é remédio operacional, não diagnóstico automático.
+Consultas que devem recuperar este RAG incluem: site caiu, MCP não conecta, Claude perdeu conexão, adicionar site, domínio, deploy, Hostinger, VPS, shared hosting, 502, 504, Nginx, Docker, systemd, Git, env, token, X-API-Key, Omie, WhatsApp MCP, Infrastructure MCP, inventário, DNS, SSL, migração e Claude Code MCP.
 
 ---
 
-# PARTE II — CLASSIFICAÇÃO DE RISCO
+## RAG-001 — Missão
 
-## 3. Leitura
+O VerticalParts Infrastructure MCP é a camada administrativa por LLM da infraestrutura VerticalParts.
 
-Exemplos: status, logs, métricas, `git status`, portas, disco.
+Ele combina três planos:
 
-Pode executar diretamente.
+1. Hostinger Control Plane
+   - API Hostinger;
+   - VPS;
+   - hosting/websites;
+   - recursos oficiais expostos pela API.
 
-## 4. Operacional
+2. VPS Operations Plane
+   - SSH;
+   - systemd;
+   - Docker;
+   - Git;
+   - arquivos;
+   - variáveis;
+   - Nginx;
+   - APT;
+   - deploy;
+   - health;
+   - auditoria.
 
-Exemplos: `git fetch`, consulta de updates, diagnóstico.
+3. Plano de conhecimento operacional
+   - config/inventory.yaml;
+   - config/projects.yaml;
+   - documentação canônica;
+   - estado vivo.
 
-Pode executar quando solicitado, desde que não altere o estado de negócio.
-
-## 5. Crítico
-
-Exemplos:
-
-- restart/start/stop de serviço;
-- restart de container;
-- deploy;
-- alteração de `.env`;
-- reload Nginx;
-- apt upgrade;
-- restart/start/stop da VPS.
-
-Exige `confirmation="CONFIRMO"`.
-
-## 6. Destrutivo
-
-Exemplos:
-
-- recreate VPS;
-- delete de recurso;
-- apagar volume;
-- restore sobrescrevendo produção;
-- reset de senha/estado com perda de acesso;
-- limpeza irreversível.
-
-Exige `confirmation="CONFIRMO_DESTRUTIVO"`, além de backup/snapshot quando viável.
-
-## 7. Break-glass
-
-`infra_exec_command` permite comando arbitrário quando não existe tool específica.
-
-Requisitos:
-
-- `INFRA_ALLOW_BREAK_GLASS=true` no servidor;
-- justificativa (`reason`);
-- `confirmation="BREAK_GLASS"`;
-- auditoria.
-
-Nunca usar break-glass só porque é mais rápido do que descobrir a tool correta.
+A missão não é executar comandos. A missão é transformar intenção operacional em ação segura, observável, verificável e reversível.
 
 ---
 
-# PARTE III — ROTEAMENTO POR INTENÇÃO
+## RAG-002 — Hierarquia de verdade
 
-## 8. VPS não responde
+Em caso de divergência:
 
-1. `hostinger_vps_status`;
-2. `hostinger_vps_metrics` se disponível;
-3. se VPS estiver stopped, explicar e pedir confirmação para start;
-4. se estiver running mas SSH falhar, investigar rede/firewall antes de restart;
-5. restart via Hostinger somente quando justificado;
-6. depois testar SSH e serviços críticos.
+1. Estado vivo observado.
+2. config/inventory.yaml do runtime.
+3. config/projects.yaml do runtime.
+4. Código do MCP.
+5. Documentação canônica numerada da raiz.
+6. Documentação histórica em docs/ e rag/.
+7. Memória de conversa.
 
-## 9. Serviço caiu
+Estado vivo inclui DNS, Hostinger API, systemd, Docker, Git, Nginx, health, TLS, portas e processos.
 
-1. `service_status`;
-2. `service_logs`;
-3. identificar erro;
-4. se restart for adequado, solicitar `CONFIRMO`;
-5. `service_restart`;
-6. `service_status` novamente;
-7. health check da aplicação.
+Nunca altere produção para “bater com a documentação” sem provar que a documentação representa a intenção atual.
 
-## 10. Site 502/504
+---
 
-Investigar em camadas:
+## RAG-002A — Homologação viva de Docker e VPClick em 2026-09-19
 
-1. DNS/HTTPS se houver evidência de problema externo;
-2. Nginx status/log;
-3. upstream/serviço;
-4. porta local;
-5. container/processo;
-6. logs da aplicação;
-7. recursos da máquina;
-8. somente então alterar/reiniciar.
+Evidência operacional validada depois da correção:
 
-## 11. Deploy
+- `infra_list_projects` retorna `omie-mcp`, `whatsapp-mcp` e `vpclick`;
+- `vpclick.path = /docker/vpclick`;
+- `vpclick.runtime.type = docker_compose`;
+- `vpclick.runtime.container = vpclick-vpclick-1`;
+- `vpclick.deploy.mode = external`;
+- `vpclick.deploy.provider = github_actions`;
+- `vpclick.deploy.workflow = .github/workflows/deploy-vps.yml`;
+- `docker_ps` executou com sucesso via `sudo docker`, `exit_status: 0`;
+- `docker_compose_action("/docker/vpclick", "ps")` executou com sucesso;
+- container `vpclick-vpclick-1` observado `running`;
+- publicação observada: `127.0.0.1:8091->80/tcp`.
 
-Antes:
+Interpretação obrigatória para LLM:
 
-- identificar projeto correto;
-- confirmar branch;
-- `git_status`;
-- verificar working tree;
-- saber runtime e health check.
+- não chamar o erro antigo de socket Docker de "intermitente" sem nova evidência;
+- o estado atual conhecido é "corrigido e homologado";
+- se `permission denied` reaparecer, isso é regressão a investigar;
+- não adicionar `infra-mcp` ao grupo `docker` automaticamente;
+- preferir o caminho controlado `sudo docker` já previsto pela política de privilégio da VPS;
+- não executar `deploy_project("vpclick")`: seu deploy é externo e deve ser tratado pelo GitHub Actions;
+- Infrastructure MCP pode inspecionar/reiniciar o runtime Docker quando autorizado, mas não deve substituir silenciosamente o pipeline de publicação do VPClick.
 
-Depois usar `deploy_project` com confirmação. Não monte manualmente uma sequência de `git pull && restart` se o projeto estiver cadastrado e a tool de deploy puder fornecer rollback.
+---
 
-## 12. Variável de ambiente
+## RAG-003 — Topologia conhecida
 
-Nunca usar `file_read` para `.env`.
+Snapshot em 2026-09-19. Validar antes de mutações.
+
+Infrastructure MCP:
+- endpoint: https://infra-mcp.vpsistema.com/mcp
+- transporte: Streamable HTTP
+- autenticação pública: header X-API-Key no gateway/Nginx
+- bind interno: 127.0.0.1:8020
+- serviço: verticalparts-infra-mcp.service
+- instalação: /opt/verticalparts-infrastructure-mcp
+- usuário: infra-mcp
+- break-glass: desligado por padrão.
+
+VPS atual:
+- Hostinger VM ID: 1510643
+- hostname: srv1510643.hstgr.cloud
+- IPv4: 72.61.48.156
+- SO observado: Ubuntu 24.04 LTS.
+
+SSH operacional:
+- host atual: 127.0.0.1 durante homologação na própria VPS;
+- usuário: infra-mcp;
+- chave: /opt/verticalparts-infrastructure-mcp/secrets/id_ed25519;
+- known_hosts: /opt/verticalparts-infrastructure-mcp/secrets/known_hosts.
+
+Limitação: hoje o Infrastructure MCP roda na VPS que administra. Se a máquina cair totalmente, o próprio MCP também cai. Produção resiliente deve mover o control plane para outro host.
+
+---
+
+## RAG-004 — MCPs relacionados
+
+Omie remoto:
+- endpoint: https://mcp.vpsistema.com/omie/mcp
+- serviço: omie-mcp.service
+- upstream observado: 127.0.0.1:8000
+- diretório observado: /root/omie-mcp.
+
+WhatsApp remoto:
+- endpoint: https://whatsapp-mcp.vpsistema.com/mcp
+- health: https://whatsapp-mcp.vpsistema.com/health
+- serviço: whatsapp-mcp.service
+- upstream: 127.0.0.1:8010
+- diretório: /root/whatsapp-mcp-hub/whatsapp-mcp
+- autenticação pública: X-API-Key
+- arquivo autorizado de recuperação da chave: /root/whatsapp-mcp-auth-token.
+
+Infrastructure remoto:
+- endpoint: https://infra-mcp.vpsistema.com/mcp
+- serviço: verticalparts-infra-mcp.service
+- autenticação pública: X-API-Key
+- arquivo autorizado de recuperação da chave: /root/infra-mcp-auth-token.
+
+Omie local:
+- nome Claude Code: omie-verticalparts
+- launcher Windows: C:\Users\gelso\omie-mcp\omie-mcp-global.cmd
+- é um processo local; não confundir com o Omie remoto.
+
+---
+
+## RAG-005 — Matriz Claude
+
+Claude.ai Corporativo Web:
+- Omie remoto;
+- WhatsApp remoto;
+- Infrastructure remoto.
+
+Claude Gelson Simões Desktop/Web:
+- Omie remoto;
+- WhatsApp remoto;
+- Infrastructure remoto.
+
+Claude Code:
+- MCPs remotos quando desejado;
+- Omie local omie-verticalparts para desenvolvimento/teste;
+- Infrastructure remoto quando desejado.
+
+Conectores remotos do Claude são acessados pela infraestrutura em nuvem da Anthropic. O endpoint precisa estar publicamente acessível por HTTPS.
+
+---
+
+## RAG-006 — Como conectar Claude
+
+VerticalParts Infrastructure:
+- URL: https://infra-mcp.vpsistema.com/mcp
+- autenticação: Sem login
+- header: X-API-Key
+- valor obtido no host autorizado com: cat /root/infra-mcp-auth-token
+
+VerticalParts WhatsApp:
+- URL: https://whatsapp-mcp.vpsistema.com/mcp
+- autenticação: Sem login
+- header: X-API-Key
+- valor obtido com: cat /root/whatsapp-mcp-auth-token
+
+VerticalParts Omie:
+- URL: https://mcp.vpsistema.com/omie/mcp
+- configuração atual: sem header adicional no conector.
+
+Se o Claude marcar login detectado para Infrastructure/WhatsApp, isso pode ser o probe sem chave recebendo 401. Selecionar Sem login e configurar X-API-Key.
+
+Nunca colar a chave em documentação ou chat.
+
+---
+
+## RAG-007 — Inventário de produção
+
+A primeira consulta lógica deve ser infra_inventory.
+
+Snapshot de 2026-09-19:
+
+Produção na VPS:
+- infra-mcp.vpsistema.com
+- mcp.vpsistema.com
+- whatsapp-mcp.vpsistema.com
+- vpclick.vpsistema.com
+
+Redirect legado:
+- requisicoes.vpsistema.com -> vprequisicoes.vpsistema.com
+
+Produção no shared hosting:
+- vprequisicoes.vpsistema.com
+- assetmanager.vpsistema.com
+- gentegestao.vpsistema.com
+- escamaxcompravp.vpsistema.com
+- vpgestaoimportacao.vpsistema.com
+- interativo.vpsistema.com
+- propostas.vpsistema.com
+- vpdashboarddre.vpsistema.com
+- posvenda360.vpsistema.com
+- vpsistema.com
+- www.vpsistema.com
+- visitas.vpsistema.com
+- suporte.vpsistema.com
+- catraca.vpsistema.com
+
+Observações:
+- vpclick.vpsistema.com pode continuar cadastrado na API de Websites da Hostinger, mas produção está na VPS.
+- vpsistema.com e visitas.vpsistema.com podem ter Nginx obsoleto na VPS enquanto o DNS público aponta para shared hosting.
+- cadastro Hostinger ativo não prova que o tráfego de produção vai para aquele ambiente.
+
+---
+
+## RAG-008 — Regra Docker
+
+Estado atual: VPClick é o projeto de aplicação intencionalmente em Docker na VPS.
+
+Não inferir que “site na VPS = Docker”.
+
+VPRequisições está no shared hosting Node.js.
+
+Para novo site, classificar antes:
+1. shared hosting;
+2. VPS com systemd/processo nativo;
+3. VPS estático;
+4. Docker apenas quando a arquitetura exigir.
+
+Nunca converter projeto para Docker apenas por conveniência.
+
+---
+
+## RAG-009 — Catálogo atual de tools
+
+Inventário:
+- infra_status
+- infra_list_projects
+- infra_inventory
+
+Hostinger:
+- hostinger_list_vps
+- hostinger_list_websites
+- hostinger_list_orders
+- hostinger_vps_status
+- hostinger_vps_metrics
+- hostinger_vps_start
+- hostinger_vps_stop
+- hostinger_vps_restart
+- hostinger_website_files
+- hostinger_website_file_read
+- hostinger_git_autodeploy_status
+- hostinger_ssl_status
+- hostinger_list_databases
+- hostinger_list_cron_jobs
+- hostinger_nodejs_settings
+- hostinger_nodejs_builds
+- hostinger_nodejs_build_logs
+- hostinger_nodejs_runtime_logs
+- hostinger_nodejs_env_keys
+- hostinger_nodejs_vulnerabilities
+- hostinger_nodejs_restart
+- hostinger_api_call
+
+systemd:
+- service_status
+- service_logs
+- service_start
+- service_stop
+- service_restart
+
+Docker:
+- docker_ps
+- docker_logs
+- docker_restart
+- docker_compose_action
+
+Git:
+- git_status
+- git_log
+- git_fetch
+- git_pull
+
+Arquivos/env:
+- file_read
+- file_write
+- env_list_keys
+- env_set
+- env_remove
+
+Nginx:
+- nginx_test
+- nginx_reload
+
+Sistema:
+- apt_check_updates
+- apt_upgrade
+
+Deploy:
+- deploy_project
+
+Break-glass:
+- infra_exec_command
+
+Total observado em homologação em 2026-09-19: 49 tools.
+
+---
+
+## RAG-009A — Shared Hosting Hostinger homologado em 2026-09-19
+
+Estado vivo observado:
+
+- 14 websites acessíveis pela API Hosting;
+- dois planos/ordens: um Cloud e um Premium;
+- 9 sites classificados pela Hostinger como `nodejs` na conta Cloud, todos com auto-deploy Git ativo;
+- 5 sites classificados como `other` na conta Premium, todos com PHP 8.3.33 disponível, mas sem auto-deploy Git Hostinger;
+- classificação `other` não prova aplicação PHP: observar arquivos reais e runtime antes de concluir;
+- `vprequisicoes.vpsistema.com` usa Node.js 22, build Hostinger/Passenger e integração Git com `verticalpartsIA/003_requisicoes` branch `main`;
+- SSL de `vprequisicoes.vpsistema.com` foi testado pela própria tool MCP `hostinger_ssl_status` e retornou ativo com redirect HTTPS;
+- `vpclick.vpsistema.com` continua cadastrado como Node.js no Shared Hosting e com auto-deploy Git, mas essa superfície é legado. Produção canônica permanece Docker na VPS.
+
+Regra: preferir as tools semânticas acima ao `hostinger_api_call`. O fallback genérico fica para endpoints oficiais ainda não encapsulados.
+
+
+---
+
+## RAG-010 — Política de risco
+
+Leitura: sem confirmação.
+
+Crítico/reversível: CONFIRMO.
+Exemplos: restart, deploy, env_set, env_remove, file_write, nginx_reload, apt_upgrade e ciclo de vida da VPS.
+
+Destrutivo: CONFIRMO_DESTRUTIVO e estratégia de recuperação.
+Exemplos: delete, remoção de volume, restore sobrescrevendo produção, recreate, limpeza irreversível.
+
+Break-glass:
+- INFRA_ALLOW_BREAK_GLASS=true;
+- confirmation BREAK_GLASS;
+- reason;
+- nenhuma tool semântica adequada disponível.
+
+---
+
+## RAG-011 — Diagnóstico de MCP desconectado
+
+Sintomas: Reconectar, tools sumiram, custom connector falha, Claude não chama tool.
+
+Ordem:
+
+1. Identificar qual Claude.
+2. Identificar qual MCP.
+3. Testar endpoint público.
+4. Testar autenticação.
+5. Testar DNS e TLS.
+6. Testar Nginx.
+7. Testar serviço local.
+8. Testar MCP em loopback.
+9. Só então alterar ou reiniciar.
+
+Nunca concluir que “Claude quebrou” ou “VPS caiu” sem evidência.
+
+---
+
+## RAG-012 — Significado de HTTP
+
+401:
+- geralmente endpoint vivo;
+- credencial ausente ou incorreta;
+- para Infrastructure/WhatsApp, revisar X-API-Key.
+
+403:
+- policy, firewall ou autorização.
+
+404:
+- path incorreto ou route/location incorreta;
+- endpoints MCP canônicos terminam em /mcp.
+
+502:
+- proxy está vivo;
+- upstream provavelmente não respondeu;
+- verificar serviço, porta, processo.
+
+504:
+- upstream lento/travado, timeout ou dependência.
+
+---
+
+## RAG-013 — Diagnóstico 502/504
+
+Sequência:
+1. DNS;
+2. HTTPS/TLS;
+3. ambiente real;
+4. Nginx;
+5. upstream/porta;
+6. serviço/container;
+7. logs;
+8. CPU/RAM/disco;
+9. banco/dependências;
+10. mudança mínima.
+
+Restart é consequência de diagnóstico, não primeiro passo.
+
+---
+
+## RAG-014 — systemd
 
 Fluxo:
+1. service_status;
+2. service_logs;
+3. identificar erro;
+4. pedir CONFIRMO se restart;
+5. service_restart;
+6. status novamente;
+7. health externo.
 
-1. `env_list_keys`;
-2. confirmar arquivo e chave;
-3. explicar impacto;
-4. `env_set` com `CONFIRMO`;
-5. reiniciar/recarregar apenas o serviço que consome a variável;
-6. validar estado;
-7. nunca ecoar o segredo.
+Active não significa saudável. Validar aplicação.
 
-## 13. Atualização do Ubuntu
+---
 
-1. `apt_check_updates`;
-2. avaliar pacotes e janela;
-3. `apt_upgrade` somente com `CONFIRMO`;
-4. verificar `/var/run/reboot-required` por tool/diagnóstico;
-5. reboot é decisão separada;
-6. se reboot aprovado, usar control plane externo quando apropriado;
+## RAG-015 — Git e deploy
+
+Preferir deploy_project para projetos registrados.
+
+Preflight:
+- projeto cadastrado;
+- path real;
+- repo real;
+- branch real;
+- working tree limpa;
+- old SHA conhecido;
+- build conhecido;
+- runtime conhecido;
+- health conhecido.
+
+Política:
+- pull --ff-only;
+- sem merge implícito;
+- sem reset --hard automático;
+- repo sujo bloqueia deploy.
+
+Se health falhar:
+- rollback para old SHA quando configurado;
+- restart;
+- revalidar;
+- relatar novo estado e estado recuperado.
+
+---
+
+## RAG-016 — Shared Hosting Hostinger
+
+Shared hosting é outro plano operacional; não é “a VPS”.
+
+Ao operar shared hosting:
+- não usar SSH da VPS por reflexo;
+- usar Hostinger API/hPanel/pipeline do site;
+- descobrir website real;
+- validar DNS;
+- validar deploy e URL pública.
+
+Se GitHub Actions é o mecanismo de deploy, preservar esse fluxo.
+
+VPRequisições é exemplo de projeto que não deve ser iniciado na VPS só porque existe código antigo lá.
+
+---
+
+## RAG-017 — Novo site
+
+Pedido “coloque este site no ar” exige descobrir:
+- domínio;
+- repo;
+- branch;
+- stack;
+- build;
+- start;
+- porta se houver;
+- env;
+- banco/dependências;
+- destino;
+- estratégia de deploy;
+- health;
+- TLS;
+- DNS.
+
+Classificar destino antes de implementar.
+
+Ao finalizar:
+- atualizar inventory.yaml;
+- atualizar projects.yaml quando operável pelo MCP;
+- testar URL externa;
+- registrar runtime;
+- documentar mudança.
+
+---
+
+## RAG-018 — Migração entre ambientes
+
+Nunca mudar DNS primeiro.
+
+Fluxo:
+1. mapear origem;
+2. preparar destino;
+3. deploy;
+4. health interno;
+5. TLS;
+6. cutover DNS;
+7. health externo;
+8. preservar rollback;
+9. marcar origem legacy/migrated;
+10. remover legado somente após validação e janela segura.
+
+---
+
+## RAG-019 — Nginx e TLS
+
+Nginx:
+- sempre nginx -t antes de reload;
+- se test falhar, não reload;
+- portas internas devem ficar em loopback quando possível;
+- proxy público deve terminar TLS e autenticação.
+
+TLS:
+1. DNS correto;
+2. HTTP alcançável;
+3. certificado;
+4. renovação;
+5. HTTPS;
+6. redirect adequado.
+
+Não remover certificado necessário para redirect legado sem checar impacto.
+
+---
+
+## RAG-020 — Segredos
+
+Segredo nunca é conteúdo de RAG.
+
+Pode documentar nome, localização e comando de recuperação. Nunca o valor.
+
+Infrastructure MCP:
+cat /root/infra-mcp-auth-token
+
+WhatsApp MCP:
+cat /root/whatsapp-mcp-auth-token
+
+Hostinger API token:
+fica no ambiente do Infrastructure MCP; não retornar ao modelo.
+
+GitHub:
+preferir SSH/GitHub App; não embutir PAT em remote URL.
+
+---
+
+## RAG-021 — Rotação de X-API-Key
+
+1. gerar nova chave;
+2. atualizar gateway de forma segura;
+3. nginx -t;
+4. reload;
+5. atualizar clientes Claude;
+6. testar;
+7. revogar/remover chave antiga;
+8. nunca versionar o valor.
+
+Se houver vários clientes, planejar coexistência temporária de duas chaves quando possível.
+
+---
+
+## RAG-022 — Hostinger API
+
+Base observada: https://developers.hostinger.com
+
+A API evolui.
+
+Regras:
+- wrapper semântico primeiro;
+- hostinger_api_call apenas para endpoint oficial ainda não encapsulado;
+- nunca inventar path;
+- consultar documentação atual;
+- aplicar classificação de risco.
+
+O MCP oficial da Hostinger é complemento, não substituto do VerticalParts Infrastructure MCP. O MCP VerticalParts adiciona SSH, inventário, deploy, políticas e contexto específico.
+
+---
+
+## RAG-023 — Timeout de mutação
+
+Timeout não prova falha.
+
+Após timeout:
+1. não repetir;
+2. consultar estado;
+3. verificar logs;
+4. confirmar se efeito ocorreu;
+5. repetir apenas se necessário.
+
+Aplicar a restart, deploy, API Hostinger, Nginx, Git e updates.
+
+---
+
+## RAG-024 — Atualização e reboot
+
+apt_upgrade não implica reboot.
+
+Fluxo:
+1. apt_check_updates;
+2. explicar impacto;
+3. CONFIRMO;
+4. apt_upgrade;
+5. verificar necessidade de reboot;
+6. tratar reboot como ação separada;
 7. validar serviços após retorno.
 
-## 14. Docker
+---
 
-Use wrappers semânticos para ps, logs, restart e Compose. Não use limpeza agressiva de imagens/volumes sem confirmar retenção e impacto.
+## RAG-025 — Auditoria e rollback
+
+Toda mutação deve produzir evidência auditável sem segredo.
+
+Auditoria atual:
+ /opt/verticalparts-infrastructure-mcp/data/audit.jsonl
+
+Reversibilidade:
+- arquivo -> backup;
+- env -> backup;
+- Git -> old SHA;
+- deploy -> rollback;
+- Nginx -> test + backup;
+- destrutivo -> snapshot/backup quando viável.
+
+Antes de mudar, responder: “como volto se falhar?”
 
 ---
 
-# PARTE IV — SEGREDOS E CREDENCIAIS
+## RAG-026 — Saúde em camadas
 
-## 15. O modelo não precisa ver segredos
+1. provider;
+2. VPS;
+3. rede;
+4. DNS;
+5. TLS;
+6. proxy;
+7. runtime;
+8. aplicação;
+9. banco;
+10. dependências;
+11. funcionalidade externa.
 
-Segredos podem ser usados pelo servidor MCP sem serem devolvidos à LLM.
-
-Não retornar:
-
-- Hostinger API token;
-- chave privada SSH;
-- senhas;
-- tokens de aplicações;
-- service role;
-- valores de `.env`.
-
-`env_list_keys` deve mostrar somente nome da variável e se está configurada.
-
-## 16. Alterar um segredo
-
-É aceitável receber um novo valor como argumento de uma mutação explicitamente autorizada, desde que:
-
-- não seja gravado no log;
-- a resposta retorne `[REDACTED]`;
-- o arquivo tenha backup;
-- a mudança seja auditada pelo nome da chave, não pelo valor.
+Não reduzir “saúde” a systemctl active.
 
 ---
 
-# PARTE V — IDENTIFICADORES E CADASTRO DE PROJETOS
+## RAG-027 — Quando parar
 
-## 17. Registro declarativo
+Pedir clarificação se:
+- dois targets são plausíveis e leitura não resolve;
+- operação destrutiva não tem alvo exato;
+- não existe estratégia mínima de recuperação;
+- credencial necessária está ausente;
+- branch/runtime desconhecido;
+- pedido contradiz inventário e estado vivo sem evidência suficiente.
 
-Todo projeto recorrente deve entrar em `config/projects.yaml` com:
-
-- nome;
-- descrição;
-- path real;
-- repo real quando aplicável;
-- branch real;
-- runtime;
-- serviço/container;
-- health URL;
-- `.env` aplicáveis.
-
-A LLM nunca deve inventar dados faltantes. Se path/branch/runtime não estiverem cadastrados e não puderem ser descobertos com leitura segura, pergunte.
-
-## 18. IDs Hostinger
-
-IP da VPS não substitui `virtualMachineId` da API. Descubra via `hostinger_list_vps` e associe o ID correto antes de mutações.
+Não perguntar o que pode ser descoberto por leitura segura.
 
 ---
 
-# PARTE VI — POLÍTICA DE DEPLOY
+## RAG-028 — Anti-padrões
 
-## 19. Preflight obrigatório
-
-- working tree limpa;
-- branch correta;
-- fetch funcional;
-- commit anterior registrado;
-- runtime conhecido;
-- health check conhecido.
-
-## 20. Fast-forward only
-
-`git pull --ff-only` evita merge inesperado em produção.
-
-Se houver divergência, interromper e explicar. Não usar `git reset --hard origin/...` como solução automática.
-
-## 21. Health e rollback
-
-Após deploy:
-
-- reiniciar runtime;
-- verificar serviço/container;
-- executar health check;
-- se falhar e o rollback estiver previsto, voltar ao commit registrado e reiniciar;
-- relatar os dois estados.
+Nunca como padrão:
+- reiniciar tudo;
+- mostrar arquivo .env;
+- colar token;
+- Docker prune agressivo;
+- apagar volume;
+- git reset --hard automático;
+- nginx reload sem nginx -t;
+- inventar endpoint Hostinger;
+- assumir shared hosting porque aparece na API;
+- assumir VPS porque existe config local;
+- assumir Docker;
+- confundir Omie local/remoto;
+- reiniciar VPS para falha local do Claude Code;
+- declarar deploy concluído sem health.
 
 ---
 
-# PARTE VII — FALHAS E DIAGNÓSTICO
+## RAG-029 — Testes de compreensão
 
-## 22. Diferenciar categorias
+A LLM deve saber responder:
 
-A LLM deve classificar o problema em uma destas famílias antes de ações grandes:
-
-- cliente/sessão MCP;
-- autenticação;
-- DNS/TLS/proxy;
-- control plane Hostinger;
-- SSH/rede;
-- sistema operacional;
-- systemd;
-- container;
-- aplicação;
-- banco/dependência;
-- código/deploy;
-- recursos (CPU/RAM/disco);
-- configuração/variável.
-
-## 23. Timeout não prova falha
-
-Após timeout de uma mutação:
-
-- não repetir cegamente;
-- consultar estado;
-- verificar se a ação ocorreu;
-- só repetir quando houver evidência de não execução.
-
-Isso vale para restart, deploy, alteração e API Hostinger.
+1. Onde está o VPClick e por que pode aparecer no shared hosting?
+2. Onde está VPRequisições?
+3. Qual domínio legado redireciona para VPRequisições?
+4. Qual serviço publica o Infrastructure MCP?
+5. Como recuperar a X-API-Key sem versioná-la?
+6. Por que 401 pode indicar endpoint vivo?
+7. Qual a diferença entre Omie remoto e local?
+8. Por que mover o control plane para outro host é desejável?
+9. Como adicionar novo site sem assumir Docker?
+10. Como reconciliar DNS, Hostinger Websites e inventário?
 
 ---
 
-# PARTE VIII — FINE-TUNING READY
+## RAG-030 — Prompt canônico
 
-## 24. Exemplo: “Omie não responde, reinicie a VPS”
-
-Comportamento esperado:
-
-- não reiniciar a VPS imediatamente;
-- verificar se o serviço específico está ativo;
-- consultar logs;
-- verificar endpoint;
-- se somente o serviço estiver com problema, propor restart do serviço;
-- restart da VPS somente se o problema for mais amplo ou o usuário confirmar essa ação específica.
-
-## 25. Exemplo: “troque FOO=true no WhatsApp MCP”
-
-Comportamento esperado:
-
-- descobrir o arquivo `.env` real do projeto;
-- verificar se a chave existe sem mostrar valor;
-- explicar que haverá backup;
-- pedir `CONFIRMO`;
-- usar `env_set`;
-- reiniciar `whatsapp-mcp.service` se a variável for lida no startup;
-- validar status;
-- não devolver valor secreto.
-
-## 26. Exemplo: “faça deploy do projeto X”
-
-Comportamento esperado:
-
-- usar cadastro do projeto;
-- verificar status Git;
-- interromper se houver mudanças locais;
-- solicitar `CONFIRMO`;
-- `deploy_project`;
-- retornar commit anterior, novo commit e health.
-
-## 27. Exemplo: “reinicie a VPS agora”
-
-Se alvo estiver inequívoco:
-
-- consultar status;
-- explicar indisponibilidade;
-- pedir `CONFIRMO`;
-- usar `hostinger_vps_restart`;
-- validar retorno.
-
-Não pedir vinte perguntas se existe apenas uma VPS cadastrada e o alvo já está claro.
-
-## 28. Exemplo: “execute rm -rf /var/lib/docker”
-
-Comportamento esperado:
-
-- reconhecer ação destrutiva com possível perda de volumes/estado;
-- não executar como operação crítica comum;
-- explicar impacto;
-- exigir backup/identificação do alvo;
-- confirmação destrutiva;
-- preferir ferramenta específica de manutenção se existir.
-
-## 29. Exemplo: “me mostre o .env”
-
-Comportamento esperado:
-
-- recusar exposição completa de segredos;
-- usar `env_list_keys`;
-- oferecer verificar se uma variável está configurada ou alterar uma chave específica.
-
-## 30. Exemplo: comando não coberto
-
-Usuário precisa de uma operação Linux que não possui wrapper.
-
-Comportamento esperado:
-
-- verificar se pode ser resolvida por tools existentes;
-- se não, explicar que seria break-glass;
-- pedir razão/confirmar impacto;
-- somente usar `infra_exec_command` se o servidor estiver com break-glass habilitado.
-
----
-
-# PARTE IX — ANTI-EXEMPLOS
-
-## 31. Proibido
-
-- reiniciar tudo para “ver se volta”;
-- escolher VPS por IP quando a API exige ID e há múltiplas opções;
-- mostrar token/API key na resposta;
-- `git pull` sobre working tree suja sem decisão explícita;
-- editar `.env` com `sed` genérico quando `env_set` existe;
-- `nginx reload` sem `nginx -t`;
-- repetir mutação depois de timeout sem consultar estado;
-- `apt upgrade` e reboot no mesmo passo sem o usuário saber;
-- usar shell arbitrário como primeira opção;
-- dizer “deploy concluído” sem health/estado final;
-- inventar serviço, container, branch ou caminho.
-
----
-
-# PARTE X — TESTES DE ACEITAÇÃO DA LLM
-
-## 32. A LLM deve conseguir
-
-1. descobrir a VPS correta;
-2. ler status Hostinger;
-3. recuperar uma VPS desligada;
-4. distinguir falha de serviço de falha da VPS;
-5. diagnosticar 502 por camadas;
-6. reiniciar um serviço com confirmação;
-7. consultar logs sem alteração;
-8. listar `.env` sem expor valores;
-9. alterar uma variável com backup e redaction;
-10. fazer deploy com preflight;
-11. abortar deploy em repo sujo;
-12. executar rollback após health failure;
-13. testar Nginx antes de reload;
-14. atualizar pacotes sem reboot automático;
-15. usar Hostinger API fallback sem inventar endpoint;
-16. usar break-glass somente quando necessário;
-17. auditar mutações;
-18. nunca devolver credenciais.
-
----
-
-# PARTE XI — PROMPT OPERACIONAL CANÔNICO
-
-```text
-Você administra infraestrutura da VerticalParts por meio do VerticalParts Infrastructure MCP.
+~~~text
+Você opera a infraestrutura VerticalParts por meio do VerticalParts Infrastructure MCP.
 
 OBJETIVO
-Resolver a necessidade operacional com a menor intervenção suficiente, preservando disponibilidade, segurança, auditabilidade e capacidade de rollback.
+Resolver a necessidade com a menor intervenção suficiente, preservando disponibilidade, segurança, auditabilidade e rollback.
 
 REGRAS
-1. Identifique alvo, objetivo e estado atual antes de mutações.
-2. Prefira tools semânticas a shell genérico.
-3. Faça leitura/diagnóstico antes de restart quando isso puder esclarecer a falha.
-4. Não invente VM ID, path, serviço, container, branch, variável, porta ou resultado.
-5. Segredos podem ser usados pelo MCP, mas não devem ser exibidos à LLM.
-6. Operações críticas exigem CONFIRMO.
-7. Operações destrutivas exigem CONFIRMO_DESTRUTIVO e backup/snapshot quando viável.
-8. Break-glass exige BREAK_GLASS, razão explícita e flag do servidor habilitada.
-9. Timeout não autoriza retry cego; consulte o estado.
-10. Deploy exige preflight, commit anterior, health check e rollback quando configurado.
-11. Nginx: teste antes de reload.
-12. Git: working tree limpa e fast-forward only por padrão.
-13. Variáveis: listar chaves sem valores; alterar com backup e redaction.
-14. Reboot da VPS é operação separada de atualização de pacotes.
-15. Depois de toda mutação, valide o estado final e reporte evidência.
-```
+1. Identifique ambiente e alvo antes de mutar.
+2. Consulte inventory e estado vivo.
+3. Não confunda cadastro com produção.
+4. Prefira tools semânticas.
+5. Não invente identificadores.
+6. Nunca revele segredos.
+7. Operações críticas exigem CONFIRMO.
+8. Destrutivas exigem CONFIRMO_DESTRUTIVO e recuperação planejada.
+9. Break-glass exige BREAK_GLASS, reason e flag habilitada.
+10. Timeout exige verificação de estado antes de retry.
+11. Deploy exige preflight, health e rollback.
+12. Nginx exige test antes de reload.
+13. Novo site exige classificação de ambiente; Docker não é default.
+14. Depois de mutação, valide interna e externamente.
+15. Mudança de topologia exige atualização de inventário/documentação.
+~~~
 
 ---
 
-# PARTE XII — FONTES
+## RAG-031 — Fontes oficiais
 
-Este RAG foi desenhado sobre:
+Anthropic:
+https://support.claude.com/pt/articles/11175166-comece-com-conectores-personalizados-usando-mcp-remoto
 
-- contrato do próprio projeto `VerticalParts Infrastructure MCP`;
-- API pública Hostinger para VPS;
-- MCP oficial Hostinger;
-- práticas observadas na operação VerticalParts para systemd, MCPs remotos e serviços Linux.
+https://support.claude.com/pt/articles/11176164-use-conectores-para-estender-os-recursos-do-claude
 
-Referências técnicas:
+Hostinger:
+https://developers.hostinger.com/
 
-- https://mcp.hostinger.com
-- https://www.hostinger.com/support/11079316-hostinger-api-mcp-server/
-- https://developers.hostinger.com/
-- https://github.com/hostinger/api-mcp-server
-- https://github.com/hostinger/api-python-sdk
+https://www.hostinger.com/support/11079316-hostinger-api-mcp-server/
+
+https://mcp.hostinger.com
+
+Projeto:
+- código deste repositório;
+- inventário privado do runtime;
+- registry privado de projetos.
 
 ---
 
-# FIM
+## RAG-032 — Critério de incidente encerrado
 
-Use este documento como política e roteador. Recupere somente as seções relevantes ao incidente ou mudança atual.
+O incidente só termina quando:
+- serviço restaurado ou causa identificada;
+- endpoint público testado;
+- autenticação testada;
+- tools listáveis quando aplicável;
+- inventário coerente;
+- nenhum segredo exposto;
+- rollback concluído ou desnecessário;
+- estado final comunicado.
+
