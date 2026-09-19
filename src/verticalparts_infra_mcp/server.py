@@ -55,8 +55,10 @@ async def infra_list_projects() -> dict[str, Any]:
         safe[name] = {
             "description": cfg.get("description"),
             "path": cfg.get("path"),
+            "repo": cfg.get("repo"),
             "branch": cfg.get("branch"),
             "runtime": cfg.get("runtime"),
+            "deploy": cfg.get("deploy"),
             "health": cfg.get("health"),
             "env_files": cfg.get("env_files", []),
         }
