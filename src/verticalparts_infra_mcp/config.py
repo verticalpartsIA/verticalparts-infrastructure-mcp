@@ -37,6 +37,7 @@ class Settings:
     ssh_known_hosts: Path = Path(os.getenv("INFRA_SSH_KNOWN_HOSTS", "~/.ssh/known_hosts")).expanduser()
 
     projects_file: Path = Path(os.getenv("INFRA_PROJECTS_FILE", "./config/projects.yaml"))
+    inventory_file: Path = Path(os.getenv("INFRA_INVENTORY_FILE", "./config/inventory.yaml"))
     policies_file: Path = Path(os.getenv("INFRA_POLICIES_FILE", "./config/policies.yaml"))
     audit_log: Path = Path(os.getenv("INFRA_AUDIT_LOG", "./data/audit.jsonl"))
     allowed_paths: tuple[Path, ...] = _paths(
