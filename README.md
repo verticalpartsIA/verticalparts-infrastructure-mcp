@@ -303,6 +303,18 @@ https://mcp.hostinger.com
 
 ---
 
+## Reconciliação pós-auditoria
+
+Em 2026-09-19 foram atualizados também os documentos complementares antigos (`CLAUDE.md`, `docs/*`, espelho `rag/*` e exemplos de configuração) para remover conclusões superadas pela auditoria real.
+
+Entre as correções:
+- Shared Hosting Hostinger possui API útil para arquivos, Node.js, Git auto-deploy, SSL, bancos e cron;
+- o catálogo atual é de 49 tools;
+- Docker do VPClick está corrigido/homologado via sudo e erro de socket futuro é regressão;
+- o registro Hostinger do VPClick é legado, não produção;
+- `website_type=other` não equivale automaticamente a PHP;
+- associações de repositório sem evidência foram removidas dos exemplos.
+
 ## Princípio final
 
 Este repositório é tanto software quanto manual de continuidade operacional.
