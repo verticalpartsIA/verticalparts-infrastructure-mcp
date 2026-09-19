@@ -1,31 +1,42 @@
 # Instalação — VerticalParts Infrastructure MCP
 
+Versão: 2026-09-19
+Status: revisado após auditoria
+
 ## Estratégia
 
-A instalação é feita em duas fases:
+A instalação pode ocorrer em duas fases:
 
-1. **Homologação**: pode rodar temporariamente na VPS que será administrada, para validar tools, autenticação, SSH e políticas.
-2. **Produção resiliente**: mover o MCP administrador para outro host/serviço. Assim o control plane continua disponível mesmo quando a VPS alvo estiver indisponível.
+1. homologação co-localizada na VPS alvo;
+2. produção resiliente em host de controle independente.
+
+O ambiente atual está na fase 1 e foi homologado funcionalmente. A fase 2 continua recomendada para recuperação durante falha total da VPS.
 
 ## Pré-requisitos
 
 - Python 3.11+;
 - Git;
-- acesso à conta Hostinger para gerar um token de API;
-- uma chave SSH dedicada para o MCP;
+- acesso autorizado à API Hostinger;
+- token Hostinger armazenado fora do Git;
+- chave SSH dedicada;
 - usuário Linux dedicado `infra-mcp`;
-- Nginx/HTTPS ou outro proxy compatível com Streamable HTTP;
-- segredo de autenticação externa do endpoint MCP;
-- DNS desejado para o MCP remoto.
+- known_hosts;
+- Nginx/HTTPS ou gateway compatível com Streamable HTTP;
+- segredo de autenticação externa do MCP;
+- DNS do endpoint remoto.
 
 ## Arquivos que nunca entram no Git
 
 - `.env`;
 - `config/projects.yaml`;
-- chaves SSH privadas;
-- token Hostinger;
-- segredo usado pelo proxy/MCP;
-- dumps e backups.
+- `config/inventory.yaml`;
+- `secrets/`;
+- `data/`;
+- private keys;
+- tokens;
+- passwords;
+- dumps;
+- backups com dados.
 
 ## Instalação do pacote
 
@@ -38,13 +49,12 @@ pip install --upgrade pip
 pip install -e .
 cp .env.example .env
 cp config/projects.example.yaml config/projects.yaml
+cp config/inventory.example.yaml config/inventory.yaml
 ```
 
-Não inicie o serviço antes de preencher e validar `.env`, SSH e `config/projects.yaml`.
+Não inicie o serviço antes de preencher e validar `.env`, SSH, inventory e projects.
 
-## Configuração mínima para homologação
-
-No `.env`:
+## Configuração mínima
 
 ```env
 MCP_TRANSPORT=streamable-http
@@ -58,31 +68,60 @@ INFRA_SSH_USER=infra-mcp
 INFRA_SSH_KEY=/opt/verticalparts-infrastructure-mcp/secrets/id_ed25519
 INFRA_SSH_KNOWN_HOSTS=/opt/verticalparts-infrastructure-mcp/secrets/known_hosts
 INFRA_PROJECTS_FILE=/opt/verticalparts-infrastructure-mcp/config/projects.yaml
+INFRA_INVENTORY_FILE=/opt/verticalparts-infrastructure-mcp/config/inventory.yaml
 INFRA_POLICIES_FILE=/opt/verticalparts-infrastructure-mcp/config/policies.yaml
 INFRA_AUDIT_LOG=/opt/verticalparts-infrastructure-mcp/data/audit.jsonl
 INFRA_ALLOW_BREAK_GLASS=false
 ```
 
-O token Hostinger deve ser criado no hPanel e gravado somente no `.env` do host. Nunca cole o token em issue, chat público, documentação ou commit.
+O token Hostinger deve permanecer somente no ambiente seguro do host.
 
 ## Ordem de homologação
 
 1. validar SSH dedicado;
-2. iniciar MCP manualmente em loopback;
-3. executar somente tools de leitura;
-4. validar API Hostinger e descobrir `vm_id`;
-5. cadastrar projetos reais em `config/projects.yaml`;
-6. testar uma mutação operacional controlada;
-7. instalar `systemd`;
-8. publicar HTTPS autenticado;
-9. conectar os clientes MCP;
-10. testar deploy/rollback;
-11. só então testar restart da VPS via control plane.
+2. iniciar MCP em loopback;
+3. executar tools de leitura;
+4. validar Hostinger API;
+5. validar `infra_inventory`;
+6. validar `infra_list_projects`;
+7. validar Docker somente se houver target Docker;
+8. instalar systemd;
+9. publicar HTTPS autenticado;
+10. executar `initialize` e `tools/list`;
+11. chamar uma tool real de leitura;
+12. testar mutação controlada somente com confirmação.
+
+## Shared Hosting
+
+A API Hostinger atual já cobre uma parte grande da operação sem SSH:
+- websites/orders;
+- arquivos;
+- SSL;
+- bancos;
+- cron;
+- Node.js builds/logs/settings/env/vulnerabilities/restart.
+
+Portanto, não tente descobrir SSH de Shared Hosting como primeira solução. Use API semântica primeiro. SSH só deve ser investigado se surgir uma necessidade concreta que a API não cobre.
 
 ## Systemd
 
-Copiar e revisar `systemd/verticalparts-infra-mcp.service.example`. O exemplo usa usuário dedicado e restrições do systemd. Os caminhos precisam existir antes de habilitar o serviço.
+Copiar e revisar `systemd/verticalparts-infra-mcp.service.example`.
+
+O serviço atual executa como `infra-mcp`. Mudanças de hardening devem ser testadas contra SSH key/known_hosts e todas as tools.
+
+## Sudo
+
+Durante a homologação o usuário `infra-mcp` possui sudo amplo. Isso é temporário.
+
+Meta:
+- allowlist de systemctl/journalctl;
+- Nginx;
+- Docker;
+- APT;
+- outros comandos estritamente necessários.
+
+Não adicionar o usuário ao grupo Docker como correção automática; o desenho atual usa `sudo docker`.
 
 ## Segurança
 
-Não habilite `INFRA_ALLOW_BREAK_GLASS=true` durante a homologação inicial. O shell arbitrário é mecanismo de contingência e deve permanecer desabilitado por padrão.
+Não habilite `INFRA_ALLOW_BREAK_GLASS=true` por conveniência. O shell arbitrário é contingência.
