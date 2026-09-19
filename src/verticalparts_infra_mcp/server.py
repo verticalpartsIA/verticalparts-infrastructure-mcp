@@ -72,6 +72,14 @@ async def hostinger_list_vps() -> Any:
 
 
 @mcp.tool()
+async def hostinger_list_websites() -> Any:
+    """Lista os sites da hospedagem compartilhada acessíveis pela API Hostinger."""
+    result = await hostinger.list_websites()
+    write_audit("hostinger_list_websites", {"ok": True})
+    return result
+
+
+@mcp.tool()
 async def hostinger_vps_status(vm_id: str | None = None) -> Any:
     """Consulta detalhes e estado de uma VPS na Hostinger."""
     vid = _vm_id(vm_id)
