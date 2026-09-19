@@ -66,6 +66,25 @@ VPS atualmente administrada:
 
 Limitação arquitetural conhecida: se essa VPS cair totalmente, o MCP hospedado nela também ficará indisponível. A arquitetura resiliente final deve hospedar o control plane em outro host.
 
+### Homologação operacional de 2026-09-19
+
+Após auditoria prática pelo Claude e correção do runtime:
+
+- o endpoint público respondeu `401` sem `X-API-Key`, como esperado;
+- o mesmo endpoint respondeu `200` no `initialize` MCP autenticado;
+- `serverInfo.name` respondeu `VerticalParts Infrastructure`;
+- `serverInfo.version` respondeu `1.30.0`;
+- `docker_ps` passou a executar via `sudo docker` e foi homologado com `exit_status: 0`;
+- `docker_compose_action(..., action="ps")` foi homologado em `/docker/vpclick`;
+- `vpclick-vpclick-1` foi observado em execução na porta `127.0.0.1:8091->80/tcp`;
+- `vpclick` foi incluído no registro privado de projetos do runtime;
+- seu runtime é `docker_compose`;
+- seu deploy é explicitamente externo, via GitHub Actions, workflow `.github/workflows/deploy-vps.yml`.
+
+O antigo erro `permission denied` no socket Docker não deve ser tratado como estado atual. A implementação foi corrigida para usar o caminho privilegiado já previsto no host. Se o erro reaparecer, trate como regressão de permissão/configuração e valide o código e sudoers antes de alterar grupo Docker.
+
+Uma desconexão momentânea do cliente MCP logo após `systemctl restart verticalparts-infra-mcp.service` é esperada porque sessões Streamable HTTP existentes são encerradas. Se houver reconexão automática e chamadas subsequentes retornarem `200`, isso não caracteriza incidente persistente.
+
 ## 5. MCPs canônicos relacionados
 
 Omie remoto:
