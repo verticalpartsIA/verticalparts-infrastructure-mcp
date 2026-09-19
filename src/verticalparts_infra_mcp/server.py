@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import shlex
+from datetime import datetime
 from typing import Any
 
 from mcp.server.fastmcp import FastMCP
@@ -84,6 +85,24 @@ def _hosting_build_uuid(build_uuid: str) -> str:
     return value
 
 
+def _port_proto(value: str) -> str:
+    value = (value or "").strip()
+    if not re.fullmatch(r"\d{1,5}(/(tcp|udp))?", value):
+        raise ValueError("Formato esperado: PORTA ou PORTA/tcp|udp, ex: '443' ou '443/tcp'")
+    return value
+
+
+def _docker_resource_name(name: str) -> str:
+    value = (name or "").strip()
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", value):
+        raise ValueError("Nome de rede/volume Docker inválido")
+    return value
+
+
+def _backup_timestamp() -> str:
+    return datetime.now().strftime("%Y%m%d%H%M%S")
+
+
 @mcp.tool()
 async def infra_status() -> dict[str, Any]:
     """Health geral do host Linux administrado: uptime, memória, disco e load."""
@@ -116,6 +135,28 @@ async def infra_list_projects() -> dict[str, Any]:
 async def infra_inventory() -> dict[str, Any]:
     """Retorna o inventário operacional autoritativo: VPS, shared hosting, DNS e legados/migrações."""
     return load_inventory()
+
+
+@mcp.tool()
+async def infra_listening_ports() -> Any:
+    """Lista portas TCP em escuta e o processo responsável (sudo ss -tlnp). Essencial para auditar exposição externa."""
+    return await ssh.run("sudo ss -tlnp", check=False)
+
+
+@mcp.tool()
+async def infra_pm2_list() -> Any:
+    """Lista processos gerenciados por PM2 sob o usuário root (PM2_HOME=/root/.pm2). Categoria separada de systemd e Docker."""
+    return await ssh.run("sudo env HOME=/root PM2_HOME=/root/.pm2 pm2 jlist", check=False)
+
+
+@mcp.tool()
+async def infra_cron_list() -> Any:
+    """Lista o crontab do root e os jobs declarados em /etc/cron.d."""
+    return await ssh.run(
+        "echo '--- crontab root ---'; sudo crontab -l -u root 2>/dev/null; "
+        "echo '--- /etc/cron.d ---'; sudo ls -la /etc/cron.d/",
+        check=False,
+    )
 
 
 @mcp.tool()
@@ -486,6 +527,26 @@ async def service_stop(service: str, confirmation: str | None = None) -> Any:
 
 
 @mcp.tool()
+async def service_enable(service: str, confirmation: str | None = None) -> Any:
+    """Habilita serviço systemd para iniciar no boot (não inicia agora). Exige confirmation='CONFIRMO'."""
+    require_confirmation(Risk.CRITICAL, confirmation)
+    svc = _service_name(service)
+    result = await ssh.run(f"sudo systemctl enable {shlex.quote(svc)}")
+    write_audit("service_enable", {"service": svc, "ok": True})
+    return result
+
+
+@mcp.tool()
+async def service_disable(service: str, confirmation: str | None = None) -> Any:
+    """Desabilita serviço systemd de iniciar no boot (não para o serviço agora). Exige confirmation='CONFIRMO'."""
+    require_confirmation(Risk.CRITICAL, confirmation)
+    svc = _service_name(service)
+    result = await ssh.run(f"sudo systemctl disable {shlex.quote(svc)}")
+    write_audit("service_disable", {"service": svc, "ok": True})
+    return result
+
+
+@mcp.tool()
 async def docker_ps(all_containers: bool = True) -> Any:
     """Lista containers Docker."""
     arg = "-a" if all_containers else ""
@@ -517,13 +578,15 @@ async def docker_compose_action(
     compose_file: str = "docker-compose.yml",
     confirmation: str | None = None,
 ) -> Any:
-    """Executa ação Docker Compose controlada: pull, build, up ou restart. Mutações exigem confirmation='CONFIRMO'."""
-    allowed = {"pull", "build", "up", "restart", "ps", "logs"}
+    """Executa ação Docker Compose controlada: pull, build, up, restart ou down. 'down' exige confirmation='CONFIRMO_DESTRUTIVO'; demais mutações exigem confirmation='CONFIRMO'."""
+    allowed = {"pull", "build", "up", "restart", "ps", "logs", "down"}
     action = action.strip().lower()
     if action not in allowed:
         raise ValueError(f"Ação permitida: {sorted(allowed)}")
     ssh.assert_allowed_path(project_dir)
-    if action not in {"ps", "logs"}:
+    if action == "down":
+        require_confirmation(Risk.DESTRUCTIVE, confirmation)
+    elif action not in {"ps", "logs"}:
         require_confirmation(Risk.CRITICAL, confirmation)
     qdir = shlex.quote(project_dir)
     qfile = shlex.quote(compose_file)
@@ -534,9 +597,54 @@ async def docker_compose_action(
         "restart": f"cd {qdir} && sudo docker compose -f {qfile} restart",
         "ps": f"cd {qdir} && sudo docker compose -f {qfile} ps",
         "logs": f"cd {qdir} && sudo docker compose -f {qfile} logs --tail 300",
+        "down": f"cd {qdir} && sudo docker compose -f {qfile} down",
     }[action]
     result = await ssh.run(cmd, timeout=900, check=False)
     write_audit("docker_compose_action", {"project_dir": project_dir, "action": action, "ok": result["exit_status"] == 0})
+    return result
+
+
+@mcp.tool()
+async def docker_network_ls() -> Any:
+    """Lista redes Docker."""
+    return await ssh.run("sudo docker network ls --format '{{json .}}'", check=False)
+
+
+@mcp.tool()
+async def docker_volume_ls() -> Any:
+    """Lista volumes Docker."""
+    return await ssh.run("sudo docker volume ls --format '{{json .}}'", check=False)
+
+
+@mcp.tool()
+async def docker_network_rm(network: str, confirmation: str | None = None) -> Any:
+    """Remove uma rede Docker, somente se não houver containers anexados. Exige confirmation='CONFIRMO_DESTRUTIVO'."""
+    require_confirmation(Risk.DESTRUCTIVE, confirmation)
+    name = _docker_resource_name(network)
+    check = await ssh.run(
+        f"sudo docker network inspect {shlex.quote(name)} --format '{{{{len .Containers}}}}'", check=False
+    )
+    if check["exit_status"] != 0:
+        raise RuntimeError(f"Rede não encontrada ou erro ao inspecionar: {check['stderr']}")
+    if check["stdout"].strip() != "0":
+        raise RuntimeError("Rede possui containers anexados; remoção bloqueada por segurança")
+    result = await ssh.run(f"sudo docker network rm {shlex.quote(name)}")
+    write_audit("docker_network_rm", {"network": name, "ok": True})
+    return result
+
+
+@mcp.tool()
+async def docker_volume_rm(volume: str, confirmation: str | None = None) -> Any:
+    """Remove um volume Docker, somente se nenhum container (ativo ou parado) o referenciar. Exige confirmation='CONFIRMO_DESTRUTIVO'."""
+    require_confirmation(Risk.DESTRUCTIVE, confirmation)
+    name = _docker_resource_name(volume)
+    check = await ssh.run(
+        f"sudo docker ps -a --filter volume={shlex.quote(name)} --format '{{{{.Names}}}}'", check=False
+    )
+    if check["stdout"].strip():
+        raise RuntimeError(f"Volume em uso por container(s): {check['stdout'].strip()}")
+    result = await ssh.run(f"sudo docker volume rm {shlex.quote(name)}")
+    write_audit("docker_volume_rm", {"volume": name, "ok": True})
     return result
 
 
@@ -607,6 +715,27 @@ async def file_write(path: str, content: str, confirmation: str | None = None) -
 
 
 @mcp.tool()
+async def file_delete(path: str, confirmation: str | None = None) -> dict[str, Any]:
+    """Remove arquivo ou diretório dentro das raízes permitidas, com backup compactado (.tar.gz) antes. Exige confirmation='CONFIRMO_DESTRUTIVO'."""
+    require_confirmation(Risk.DESTRUCTIVE, confirmation)
+    if path.endswith("/.env") or path.endswith(".env"):
+        raise PermissionError("Remoção direta de .env bloqueada.")
+    ssh.assert_allowed_path(path)
+    q = shlex.quote(path)
+    backup_path = f"{path}.infra-mcp-deleted-{_backup_timestamp()}.tar.gz"
+    qb = shlex.quote(backup_path)
+    cmd = (
+        f"if [ ! -e {q} ]; then echo NOT_FOUND >&2; exit 1; fi; "
+        f"sudo tar czf {qb} -C $(dirname {q}) $(basename {q}) && "
+        f"sudo chmod 600 {qb} && "
+        f"sudo rm -rf {q} && echo OK"
+    )
+    result = await ssh.run(cmd, timeout=300, check=False)
+    write_audit("file_delete", {"path": path, "backup": backup_path, "ok": result["exit_status"] == 0})
+    return {**result, "backup": backup_path}
+
+
+@mcp.tool()
 async def env_list_keys(path: str) -> dict[str, Any]:
     """Lista somente as chaves de um arquivo .env e se possuem valor, sem revelar valores."""
     if not (path.endswith(".env") or "/.env." in path):
@@ -668,6 +797,32 @@ async def nginx_reload(confirmation: str | None = None) -> Any:
     require_confirmation(Risk.CRITICAL, confirmation)
     result = await ssh.run("sudo nginx -t && sudo systemctl reload nginx && sudo systemctl is-active nginx")
     write_audit("nginx_reload", {"ok": True})
+    return result
+
+
+@mcp.tool()
+async def firewall_status() -> Any:
+    """Consulta status e regras do firewall (ufw). Somente leitura."""
+    return await ssh.run("sudo ufw status verbose", check=False)
+
+
+@mcp.tool()
+async def firewall_allow(port_proto: str, confirmation: str | None = None) -> Any:
+    """Libera uma porta no firewall (ex: '443' ou '443/tcp'). Exige confirmation='CONFIRMO'."""
+    require_confirmation(Risk.CRITICAL, confirmation)
+    rule = _port_proto(port_proto)
+    result = await ssh.run(f"sudo ufw allow {shlex.quote(rule)} && sudo ufw status verbose")
+    write_audit("firewall_allow", {"port_proto": rule, "ok": True})
+    return result
+
+
+@mcp.tool()
+async def firewall_delete_rule(port_proto: str, confirmation: str | None = None) -> Any:
+    """Remove uma regra de liberação existente (ex: '443' ou '443/tcp'). Exige confirmation='CONFIRMO'."""
+    require_confirmation(Risk.CRITICAL, confirmation)
+    rule = _port_proto(port_proto)
+    result = await ssh.run(f"sudo ufw delete allow {shlex.quote(rule)} && sudo ufw status verbose")
+    write_audit("firewall_delete_rule", {"port_proto": rule, "ok": True})
     return result
 
 
